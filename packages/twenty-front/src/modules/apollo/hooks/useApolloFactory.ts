@@ -1,6 +1,6 @@
 import { InMemoryCache } from '@apollo/client';
 import { useMemo, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { matchPath, useNavigate } from 'react-router-dom';
 
 import { ApolloFactory, type Options } from '@/apollo/services/apollo.factory';
 import { currentUserState } from '@/auth/states/currentUserState';
@@ -19,7 +19,6 @@ import { AppPath } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
 import { useUpdateEffect } from '~/hooks/useUpdateEffect';
-import { isMatchingLocation } from '~/utils/isMatchingLocation';
 
 export const useApolloFactory = (options: Partial<Options> = {}) => {
   // oxlint-disable-next-line twenty/no-state-useref
@@ -38,7 +37,6 @@ export const useApolloFactory = (options: Partial<Options> = {}) => {
   const setCurrentUserWorkspace = useSetAtomState(currentUserWorkspaceState);
 
   const setReturnToPath = useSetAtomState(returnToPathState);
-  const location = useLocation();
 
   const { enqueueErrorSnackBar } = useSnackBar();
 
@@ -71,16 +69,20 @@ export const useApolloFactory = (options: Partial<Options> = {}) => {
         setCurrentWorkspaceMember(null);
         setCurrentWorkspace(null);
         setCurrentUserWorkspace(null);
-        if (
-          !isMatchingLocation(location, AppPath.Verify) &&
-          !isMatchingLocation(location, AppPath.SignInUp) &&
-          !isMatchingLocation(location, AppPath.Invite) &&
-          !isMatchingLocation(location, AppPath.ResetPassword)
-        ) {
-          const path = `${location.pathname}${location.search}${location.hash}`;
 
-          if (isValidReturnToPath(path)) {
-            setReturnToPath(path);
+        const currentPathname = window.location.pathname;
+        const isOnAuthPage = [
+          AppPath.Verify,
+          AppPath.SignInUp,
+          AppPath.Invite,
+          AppPath.ResetPassword,
+        ].some((appPath) => matchPath(appPath, currentPathname));
+
+        if (!isOnAuthPage) {
+          const fullPath = `${currentPathname}${window.location.search}${window.location.hash}`;
+
+          if (isValidReturnToPath(fullPath)) {
+            setReturnToPath(fullPath);
           }
           navigate(AppPath.SignInUp);
         }

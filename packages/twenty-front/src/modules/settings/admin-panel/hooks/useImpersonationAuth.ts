@@ -10,8 +10,11 @@ export const useImpersonationAuth = () => {
 
   const executeImpersonationAuth = async (loginToken: string) => {
     setIsAppEffectRedirectEnabled(false);
-    await getAuthTokensFromLoginToken(loginToken);
-    setIsAppEffectRedirectEnabled(true);
+    try {
+      await getAuthTokensFromLoginToken(loginToken);
+    } finally {
+      setIsAppEffectRedirectEnabled(true);
+    }
   };
 
   return { executeImpersonationAuth };

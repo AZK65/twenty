@@ -33,7 +33,6 @@ import {
 import isEmpty from 'lodash.isempty';
 import { getGenericOperationName, isDefined } from 'twenty-shared/utils';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
-import { cookieStorage } from '~/utils/cookie-storage';
 import { isUndefinedOrNull } from '~/utils/isUndefinedOrNull';
 
 const logger = loggerLink(() => 'Twenty');
@@ -160,20 +159,31 @@ export class ApolloFactory implements ApolloManager {
         operation: ApolloLink.Operation,
         forward: ApolloLink.ForwardFunction,
       ) => {
+        // Snapshot tokens at error time so we can detect if a new
+        // login happened while renewal was in-flight
+        const tokenPairAtErrorTime = getTokenPair();
+
         if (!renewalPromise) {
           // Always renew through /metadata since the RenewToken is only exposed there
           const graphqlUri = `${REACT_APP_SERVER_BASE_URL}/metadata`;
 
-          renewalPromise = renewToken(graphqlUri, getTokenPair())
+          renewalPromise = renewToken(graphqlUri, tokenPairAtErrorTime)
             .then((tokens) => {
+              if (getTokenPair() !== tokenPairAtErrorTime) {
+                return;
+              }
+
               if (isDefined(tokens)) {
                 // oxlint-disable-next-line no-console
                 console.log('setTokenPair from handleTokenRenewal');
                 onTokenPairChange?.(tokens);
-                cookieStorage.setItem('tokenPair', JSON.stringify(tokens));
               }
             })
             .catch(() => {
+              if (getTokenPair() !== tokenPairAtErrorTime) {
+                return;
+              }
+
               // oxlint-disable-next-line no-console
               console.log(
                 'Failed to renew token, triggering unauthenticated error from handleTokenRenewal',

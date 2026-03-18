@@ -14,7 +14,7 @@ import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomStat
 import { type ColorScheme } from '@/workspace-member/types/WorkspaceMember';
 import { enUS } from 'date-fns/locale';
 import { useStore } from 'jotai';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { type APP_LOCALES, SOURCE_LOCALE } from 'twenty-shared/translations';
 import { type ObjectPermissions } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -30,7 +30,6 @@ export const UserMetadataProviderInitialEffect = () => {
   const hasAccessTokenPair = useHasAccessTokenPair();
   const currentUser = useAtomStateValue(currentUserState);
   const store = useStore();
-  const [isInitialized, setIsInitialized] = useState(false);
 
   const setCurrentUser = useSetAtomState(currentUserState);
   const setCurrentWorkspace = useSetAtomState(currentWorkspaceState);
@@ -75,17 +74,17 @@ export const UserMetadataProviderInitialEffect = () => {
   );
 
   useEffect(() => {
-    if (isInitialized) {
-      return;
-    }
-
     if (!hasAccessTokenPair) {
       setIsCurrentUserLoaded(true);
-      setIsInitialized(true);
       return;
     }
 
     if (userQueryLoading || !isDefined(userQueryData?.currentUser)) {
+      return;
+    }
+
+    if (isDefined(currentUser)) {
+      setIsCurrentUserLoaded(true);
       return;
     }
 
@@ -162,10 +161,9 @@ export const UserMetadataProviderInitialEffect = () => {
     }
 
     setIsCurrentUserLoaded(true);
-    setIsInitialized(true);
   }, [
-    isInitialized,
     hasAccessTokenPair,
+    currentUser,
     userQueryLoading,
     userQueryData?.currentUser,
     setCurrentUser,
