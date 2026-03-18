@@ -1,7 +1,29 @@
-import { tokenPairState } from '@/auth/states/tokenPairState';
-import { jotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
+import { isDefined } from 'twenty-shared/utils';
 import { type AuthTokenPair } from '~/generated-metadata/graphql';
+import { cookieStorage } from '~/utils/cookie-storage';
+import { isValidAuthTokenPair } from './isValidAuthTokenPair';
 
 export const getTokenPair = (): AuthTokenPair | undefined => {
-  return jotaiStore.get(tokenPairState.atom) ?? undefined;
+  const stringTokenPair = cookieStorage.getItem('tokenPair');
+
+  if (!isDefined(stringTokenPair)) {
+    // oxlint-disable-next-line no-console
+    console.log('tokenPair is undefined');
+
+    return undefined;
+  }
+
+  try {
+    const parsedTokenPair = JSON.parse(stringTokenPair);
+
+    if (!isValidAuthTokenPair(parsedTokenPair)) {
+      cookieStorage.removeItem('tokenPair');
+      return undefined;
+    }
+
+    return parsedTokenPair;
+  } catch {
+    cookieStorage.removeItem('tokenPair');
+    return undefined;
+  }
 };
