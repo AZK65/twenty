@@ -61,6 +61,8 @@ export class CalendarRelaunchFailedCalendarChannelJob {
       await calendarChannelRepository.update(calendarChannelId, {
         syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
         syncStatus: CalendarChannelSyncStatus.ACTIVE,
+        throttleFailureCount: 0,
+        syncStageStartedAt: null,
       });
     }, authContext);
   }
