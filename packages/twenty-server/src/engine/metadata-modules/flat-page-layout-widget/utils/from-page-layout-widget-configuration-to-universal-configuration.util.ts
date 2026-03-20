@@ -335,6 +335,7 @@ export const fromPageLayoutWidgetConfigurationToUniversalConfiguration = ({
     case WidgetConfigurationType.WORKFLOW_RUN:
     case WidgetConfigurationType.IFRAME:
     case WidgetConfigurationType.STANDALONE_RICH_TEXT:
+    case WidgetConfigurationType.RECORD_TABLE:
       return configuration;
   }
 };

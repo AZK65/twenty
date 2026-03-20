@@ -91,6 +91,11 @@ export type ViewConfiguration = {
   configurationType: 'VIEW';
 };
 
+export type RecordTableConfiguration = {
+  configurationType: 'RECORD_TABLE';
+  viewId?: string;
+};
+
 export type FieldConfiguration = {
   configurationType: 'FIELD';
 };
@@ -167,6 +172,7 @@ export type PageLayoutWidgetConfiguration =
   | BarChartConfiguration
   | LineChartConfiguration
   | ViewConfiguration
+  | RecordTableConfiguration
   | FieldConfiguration
   | FieldsConfiguration
   | FieldRichTextConfiguration
