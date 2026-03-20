@@ -8,6 +8,7 @@ import { convertPageLayoutDraftToUpdateInput } from '@/page-layout/utils/convert
 import { convertPageLayoutToTabLayouts } from '@/page-layout/utils/convertPageLayoutToTabLayouts';
 import { reInjectDynamicRelationWidgetsFromDraft } from '@/page-layout/utils/reInjectDynamicRelationWidgetsFromDraft';
 import { transformPageLayout } from '@/page-layout/utils/transformPageLayout';
+import { useSaveRecordTableWidgetsViewDataOnDashboardSave } from '@/page-layout/widgets/record-table/hooks/useSaveRecordTableWidgetsViewDataOnDashboardSave';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
 import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
 import { useStore } from 'jotai';
@@ -39,6 +40,9 @@ export const useSavePageLayout = (pageLayoutIdFromProps: string) => {
 
   const { updatePageLayoutWithTabsAndWidgets } =
     useUpdatePageLayoutWithTabsAndWidgets();
+
+  const { saveRecordTableWidgetsViewDataOnDashboardSave } =
+    useSaveRecordTableWidgetsViewDataOnDashboardSave(pageLayoutId);
 
   const store = useStore();
 
@@ -73,6 +77,8 @@ export const useSavePageLayout = (pageLayoutIdFromProps: string) => {
           convertPageLayoutToTabLayouts(pageLayoutToPersist),
         );
       }
+
+      await saveRecordTableWidgetsViewDataOnDashboardSave();
     }
 
     return result;
@@ -82,6 +88,7 @@ export const useSavePageLayout = (pageLayoutIdFromProps: string) => {
     pageLayoutId,
     pageLayoutPersistedCallbackState,
     updatePageLayoutWithTabsAndWidgets,
+    saveRecordTableWidgetsViewDataOnDashboardSave,
     store,
   ]);
 
