@@ -40,6 +40,9 @@ FROM node:24-alpine AS twenty
 RUN apk add --no-cache curl jq postgresql-client
 RUN npm install -g tsx
 
+COPY ./packages/twenty-docker/twenty/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 WORKDIR /app/packages/twenty-server
 
 COPY --chown=1000 --from=twenty-server-build /app /app
@@ -50,4 +53,5 @@ RUN mkdir -p /app/.local-storage /app/packages/twenty-server/.local-storage && \
 
 USER 1000
 
-ENTRYPOINT ["node", "dist/main"]
+CMD ["node", "dist/main"]
+ENTRYPOINT ["/app/entrypoint.sh"]
