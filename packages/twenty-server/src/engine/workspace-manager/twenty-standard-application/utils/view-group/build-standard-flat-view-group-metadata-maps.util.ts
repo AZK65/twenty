@@ -5,6 +5,7 @@ import { type FlatViewGroup } from 'src/engine/metadata-modules/flat-view-group/
 import { type AllStandardObjectName } from 'src/engine/workspace-manager/twenty-standard-application/types/all-standard-object-name.type';
 import { computeStandardOpportunityViewGroups } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-group/compute-standard-opportunity-view-groups.util';
 import { type CreateStandardViewGroupArgs } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-group/create-standard-view-group-flat-metadata.util';
+import { computeStandardLeadViewGroups } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-group/compute-standard-lead-view-groups.util';
 import { computeStandardTaskViewGroups } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-group/compute-standard-task-view-groups.util';
 
 type StandardViewGroupBuilder<P extends AllStandardObjectName> = (
@@ -12,6 +13,7 @@ type StandardViewGroupBuilder<P extends AllStandardObjectName> = (
 ) => Record<string, FlatViewGroup>;
 
 const STANDARD_FLAT_VIEW_GROUP_METADATA_BUILDERS_BY_OBJECT_NAME = {
+  lead: computeStandardLeadViewGroups,
   opportunity: computeStandardOpportunityViewGroups,
   task: computeStandardTaskViewGroups,
 } as const satisfies {

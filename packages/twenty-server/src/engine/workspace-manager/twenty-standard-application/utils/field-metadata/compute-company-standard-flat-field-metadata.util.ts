@@ -519,4 +519,26 @@ export const buildCompanyStandardFlatFieldMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
+  leads: createStandardRelationFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      type: FieldMetadataType.RELATION,
+      morphId: null,
+      fieldName: 'leads',
+      label: 'Leads',
+      description: 'Leads linked to the company.',
+      icon: 'IconUsers',
+      isNullable: true,
+      targetObjectName: 'lead',
+      targetFieldName: 'company',
+      settings: {
+        relationType: RelationType.ONE_TO_MANY,
+      },
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
 });

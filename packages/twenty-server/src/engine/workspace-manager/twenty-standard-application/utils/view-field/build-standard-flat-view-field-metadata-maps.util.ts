@@ -16,6 +16,7 @@ import { computeStandardConnectedAccountViewFields } from 'src/engine/workspace-
 import { computeStandardDashboardViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-dashboard-view-fields.util';
 import { computeStandardFavoriteFolderViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-favorite-folder-view-fields.util';
 import { computeStandardFavoriteViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-favorite-view-fields.util';
+import { computeStandardLeadViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-lead-view-fields.util';
 import { computeStandardMessageChannelMessageAssociationMessageFolderViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-channel-message-association-message-folder-view-fields.util';
 import { computeStandardMessageChannelMessageAssociationViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-channel-message-association-view-fields.util';
 import { computeStandardMessageChannelViewFields } from 'src/engine/workspace-manager/twenty-standard-application/utils/view-field/compute-standard-message-channel-view-fields.util';
@@ -54,6 +55,7 @@ const STANDARD_FLAT_VIEW_FIELD_METADATA_BUILDERS_BY_OBJECT_NAME = {
   dashboard: computeStandardDashboardViewFields,
   favorite: computeStandardFavoriteViewFields,
   favoriteFolder: computeStandardFavoriteFolderViewFields,
+  lead: computeStandardLeadViewFields,
   message: computeStandardMessageViewFields,
   messageChannel: computeStandardMessageChannelViewFields,
   messageChannelMessageAssociation:

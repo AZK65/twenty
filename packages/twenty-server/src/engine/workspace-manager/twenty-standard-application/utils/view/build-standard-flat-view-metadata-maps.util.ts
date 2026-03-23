@@ -25,6 +25,7 @@ import { computeStandardMessageThreadViews } from 'src/engine/workspace-manager/
 import { computeStandardMessageViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-message-views.util';
 import { computeStandardNoteTargetViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-note-target-views.util';
 import { computeStandardNoteViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-note-views.util';
+import { computeStandardLeadViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-lead-views.util';
 import { computeStandardOpportunityViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-opportunity-views.util';
 import { computeStandardPersonViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-person-views.util';
 import { computeStandardTaskTargetViews } from 'src/engine/workspace-manager/twenty-standard-application/utils/view/compute-standard-task-target-views.util';
@@ -65,6 +66,7 @@ const STANDARD_FLAT_VIEW_METADATA_BUILDERS_BY_OBJECT_NAME = {
   messageThread: computeStandardMessageThreadViews,
   note: computeStandardNoteViews,
   noteTarget: computeStandardNoteTargetViews,
+  lead: computeStandardLeadViews,
   opportunity: computeStandardOpportunityViews,
   person: computeStandardPersonViews,
   task: computeStandardTaskViews,

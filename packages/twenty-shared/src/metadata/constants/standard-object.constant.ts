@@ -47,6 +47,9 @@ export const STANDARD_OBJECTS = {
       targetOpportunity: {
         universalIdentifier: '20202020-7374-499d-bea3-9354890755b5',
       },
+      targetLead: {
+        universalIdentifier: '30303030-a1b2-4c3d-8e4f-a00000000001',
+      },
       targetDashboard: {
         universalIdentifier: '20202020-5324-43f3-9dbf-1a33e7de0ce6',
       },
@@ -722,6 +725,9 @@ export const STANDARD_OBJECTS = {
       searchVector: {
         universalIdentifier: '85c71601-72f9-4b7b-b343-d46100b2c74d',
       },
+      leads: {
+        universalIdentifier: '30303030-c001-4001-8001-000000000001',
+      },
     },
     indexes: {
       accountOwnerIdIndex: {
@@ -1019,6 +1025,9 @@ export const STANDARD_OBJECTS = {
       company: { universalIdentifier: '20202020-cff5-4682-8bf9-069169e08279' },
       opportunity: {
         universalIdentifier: '20202020-dabc-48e1-8318-2781a2b32aa2',
+      },
+      lead: {
+        universalIdentifier: '30303030-a1b2-4c3d-8e4f-f00000000001',
       },
       workflow: { universalIdentifier: '20202020-b11b-4dc8-999a-6bd0a947b463' },
       workflowVersion: {
@@ -2057,6 +2066,9 @@ export const STANDARD_OBJECTS = {
       targetOpportunity: {
         universalIdentifier: '20202020-4e42-417a-a705-76581c9ade79',
       },
+      targetLead: {
+        universalIdentifier: '30303030-a1b2-4c3d-8e4f-b00000000001',
+      },
       createdBy: {
         universalIdentifier: '820a3163-bb7d-41bc-93d9-81a464559c48',
       },
@@ -2105,6 +2117,272 @@ export const STANDARD_OBJECTS = {
           },
           targetOpportunity: {
             universalIdentifier: '3efeb162-cd03-458b-9c7b-47032d045204',
+          },
+        },
+      },
+    },
+  },
+  lead: {
+    universalIdentifier: '30303030-a1b2-4c3d-8e4f-567890abcdef',
+    fields: {
+      id: { universalIdentifier: '30303030-0001-4001-8001-000000000001' },
+      createdAt: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000002',
+      },
+      updatedAt: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000003',
+      },
+      deletedAt: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000004',
+      },
+      name: { universalIdentifier: '30303030-0001-4001-8001-000000000005' },
+      emails: { universalIdentifier: '30303030-0001-4001-8001-000000000006' },
+      phones: { universalIdentifier: '30303030-0001-4001-8001-000000000007' },
+      company: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000008',
+      },
+      source: { universalIdentifier: '30303030-0001-4001-8001-000000000009' },
+      sourceDetail: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000000a',
+      },
+      needs: { universalIdentifier: '30303030-0001-4001-8001-00000000000b' },
+      stage: { universalIdentifier: '30303030-0001-4001-8001-00000000000c' },
+      assignedTo: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000000d',
+      },
+      priority: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000000e',
+      },
+      estimatedValue: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000000f',
+      },
+      nextFollowUpDate: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000010',
+      },
+      linkedinLink: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000011',
+      },
+      enrichmentStatus: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000012',
+      },
+      industry: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000013',
+      },
+      companySize: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000014',
+      },
+      companyRevenue: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000015',
+      },
+      position: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000016',
+      },
+      createdBy: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000017',
+      },
+      updatedBy: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000018',
+      },
+      searchVector: {
+        universalIdentifier: '30303030-0001-4001-8001-000000000019',
+      },
+      favorites: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001a',
+      },
+      taskTargets: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001b',
+      },
+      noteTargets: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001c',
+      },
+      attachments: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001d',
+      },
+      timelineActivities: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001e',
+      },
+      owner: {
+        universalIdentifier: '30303030-0001-4001-8001-00000000001f',
+      },
+    },
+    indexes: {
+      companyIdIndex: {
+        universalIdentifier: '30303030-0002-4002-8002-000000000001',
+      },
+      stageIndex: {
+        universalIdentifier: '30303030-0002-4002-8002-000000000002',
+      },
+      sourceIndex: {
+        universalIdentifier: '30303030-0002-4002-8002-000000000003',
+      },
+      assignedToIdIndex: {
+        universalIdentifier: '30303030-0002-4002-8002-000000000004',
+      },
+      searchVectorGinIndex: {
+        universalIdentifier: '30303030-0002-4002-8002-000000000005',
+      },
+    },
+    views: {
+      allLeads: {
+        universalIdentifier: '30303030-0003-4003-8003-000000000001',
+        viewFields: {
+          name: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000011',
+          },
+          emails: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000012',
+          },
+          company: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000013',
+          },
+          stage: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000014',
+          },
+          source: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000015',
+          },
+          priority: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000016',
+          },
+          estimatedValue: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000017',
+          },
+          assignedTo: {
+            universalIdentifier: '30303030-0003-4003-8003-000000000018',
+          },
+        },
+      },
+      byStage: {
+        universalIdentifier: '30303030-0004-4004-8004-000000000001',
+        viewFields: {
+          name: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000011',
+          },
+          emails: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000012',
+          },
+          company: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000013',
+          },
+          stage: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000014',
+          },
+          source: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000015',
+          },
+          priority: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000016',
+          },
+          estimatedValue: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000017',
+          },
+          assignedTo: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000018',
+          },
+        },
+        viewGroups: {
+          new: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000021',
+          },
+          contacted: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000022',
+          },
+          qualified: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000023',
+          },
+          preCall: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000024',
+          },
+          meetingScheduled: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000025',
+          },
+          proposal: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000026',
+          },
+          negotiation: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000027',
+          },
+          won: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000028',
+          },
+          lost: {
+            universalIdentifier: '30303030-0004-4004-8004-000000000029',
+          },
+        },
+      },
+      leadRecordPageFields: {
+        universalIdentifier: '30303030-0005-4005-8005-000000000001',
+        viewFieldGroups: {
+          general: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000011',
+          },
+          additional: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000012',
+          },
+          other: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000013',
+          },
+        },
+        viewFields: {
+          name: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000021',
+          },
+          emails: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000022',
+          },
+          phones: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000023',
+          },
+          company: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000024',
+          },
+          stage: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000025',
+          },
+          source: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000026',
+          },
+          priority: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000027',
+          },
+          estimatedValue: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000028',
+          },
+          assignedTo: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000029',
+          },
+          owner: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002a',
+          },
+          createdAt: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002b',
+          },
+          createdBy: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002c',
+          },
+          nextFollowUpDate: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002d',
+          },
+          sourceDetail: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002e',
+          },
+          needs: {
+            universalIdentifier: '30303030-0005-4005-8005-00000000002f',
+          },
+          linkedinLink: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000030',
+          },
+          enrichmentStatus: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000031',
+          },
+          industry: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000032',
+          },
+          companySize: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000033',
+          },
+          companyRevenue: {
+            universalIdentifier: '30303030-0005-4005-8005-000000000034',
           },
         },
       },
@@ -2658,6 +2936,9 @@ export const STANDARD_OBJECTS = {
       targetOpportunity: {
         universalIdentifier: '20202020-6cb2-4c01-a9a5-aca3dbc11d41',
       },
+      targetLead: {
+        universalIdentifier: '30303030-a1b2-4c3d-8e4f-c00000000001',
+      },
       createdBy: {
         universalIdentifier: '65fe2a53-45e4-4225-9711-b827f55e51cc',
       },
@@ -2742,6 +3023,9 @@ export const STANDARD_OBJECTS = {
       },
       targetOpportunity: {
         universalIdentifier: '20202020-7664-4a35-a3df-580d389fd527',
+      },
+      targetLead: {
+        universalIdentifier: '30303030-a1b2-4c3d-8e4f-d00000000001',
       },
       targetTask: {
         universalIdentifier: '20202020-b2f5-415c-9135-a31dfe49501b',
@@ -3296,6 +3580,12 @@ export const STANDARD_OBJECTS = {
       },
       ownedOpportunities: {
         universalIdentifier: '20202020-9e4d-4b3a-8c1f-6d7e8f9a0b1c',
+      },
+      assignedLeads: {
+        universalIdentifier: '30303030-c002-4002-8002-000000000001',
+      },
+      ownedLeads: {
+        universalIdentifier: '30303030-c003-4003-8003-000000000001',
       },
       favorites: {
         universalIdentifier: '20202020-f3c1-4faf-b343-cf7681038757',
