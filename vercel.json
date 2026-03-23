@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npx nx build twenty-front",
+  "outputDirectory": "packages/twenty-front/build",
+  "installCommand": "yarn",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
