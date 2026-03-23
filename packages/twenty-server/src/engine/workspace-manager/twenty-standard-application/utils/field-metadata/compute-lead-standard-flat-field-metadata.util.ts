@@ -225,7 +225,7 @@ export const buildLeadStandardFlatFieldMetadatas = ({
       label: 'Emails',
       description: 'Lead emails',
       icon: 'IconMail',
-      isNullable: false,
+      isNullable: true,
       settings: {
         maxNumberOfValues: 5,
       },
@@ -244,7 +244,7 @@ export const buildLeadStandardFlatFieldMetadatas = ({
       label: 'Phones',
       description: 'Lead phones',
       icon: 'IconPhone',
-      isNullable: false,
+      isNullable: true,
       settings: {
         maxNumberOfValues: 5,
       },
