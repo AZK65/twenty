@@ -66,3 +66,4 @@ USER 1000
 
 CMD ["node", "dist/main"]
 ENTRYPOINT ["/app/entrypoint.sh"]
+
