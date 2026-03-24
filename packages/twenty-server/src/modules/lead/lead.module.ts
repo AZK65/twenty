@@ -1,20 +1,44 @@
 import { Module } from '@nestjs/common';
 
+import { LeadWebhookController } from 'src/modules/lead/controllers/lead-webhook.controller';
+import { WebhookAuthGuard } from 'src/modules/lead/guards/webhook-auth.guard';
 import { LeadAssignmentNotificationJob } from 'src/modules/lead/jobs/lead-assignment-notification.job';
 import { LeadAssignmentListener } from 'src/modules/lead/listeners/lead-assignment.listener';
 import { LeadEnrichmentListener } from 'src/modules/lead/listeners/lead-enrichment.listener';
 import { LeadStageTransitionListener } from 'src/modules/lead/listeners/lead-stage-transition.listener';
+import { RenCallBookedListener } from 'src/modules/lead/listeners/ren-call-booked.listener';
+import { RenCustomerStatusListener } from 'src/modules/lead/listeners/ren-customer-status.listener';
+import { AffiliateOutboundWebhookService } from 'src/modules/lead/services/affiliate-outbound-webhook.service';
+import { CalcomWebhookService } from 'src/modules/lead/services/calcom-webhook.service';
+import { CloseCrmImportService } from 'src/modules/lead/services/close-crm-import.service';
 import { LeadEnrichmentService } from 'src/modules/lead/services/lead-enrichment.service';
+import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
+import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 
 @Module({
   imports: [],
+  controllers: [LeadWebhookController],
   providers: [
+    AffiliateOutboundWebhookService,
+    CalcomWebhookService,
+    CloseCrmImportService,
     LeadAssignmentListener,
     LeadAssignmentNotificationJob,
     LeadEnrichmentListener,
     LeadEnrichmentService,
     LeadStageTransitionListener,
+    LeadWebhookService,
+    RenCallBookedListener,
+    RenCustomerStatusListener,
+    RenWebhookService,
+    WebhookAuthGuard,
   ],
-  exports: [LeadEnrichmentService],
+  exports: [
+    AffiliateOutboundWebhookService,
+    CalcomWebhookService,
+    LeadEnrichmentService,
+    LeadWebhookService,
+    RenWebhookService,
+  ],
 })
 export class LeadModule {}

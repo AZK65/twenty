@@ -13,6 +13,7 @@ import {
   LEAD_STAGE_SEQUENCES,
   type LeadSequenceStep,
 } from 'src/modules/lead/constants/lead-stage-sequences.constant';
+import { AffiliateOutboundWebhookService } from 'src/modules/lead/services/affiliate-outbound-webhook.service';
 import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 export type LeadStageSequenceJobData = {
@@ -34,6 +35,7 @@ export class LeadStageTransitionListener {
   constructor(
     @InjectMessageQueue(MessageQueue.emailQueue)
     private readonly messageQueueService: MessageQueueService,
+    private readonly affiliateOutboundWebhookService: AffiliateOutboundWebhookService,
   ) {}
 
   @OnDatabaseBatchEvent('lead', DatabaseEventAction.UPDATED)
@@ -57,6 +59,17 @@ export class LeadStageTransitionListener {
       this.logger.log(
         `Lead ${event.recordId} transitioned from "${previousStage ?? 'none'}" to "${newStage}" in workspace ${payload.workspaceId}`,
       );
+
+      // Notify affiliate platform of stage change
+      await this.affiliateOutboundWebhookService.notifyStageChange({
+        event: 'lead.stage_changed',
+        leadId: event.recordId,
+        leadName: event.properties.after.name ?? '',
+        previousStage: previousStage ?? '',
+        newStage,
+        workspaceId: payload.workspaceId,
+        timestamp: new Date().toISOString(),
+      });
 
       const sequence = LEAD_STAGE_SEQUENCES[newStage];
 
