@@ -4,6 +4,8 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
+
 // Maps Close CRM status labels to Twenty lead stages
 const CLOSE_STATUS_TO_STAGE: Record<string, string> = {
   'Potential': 'NEW',
@@ -88,17 +90,7 @@ export class CloseCrmImportService {
       errors: [],
     };
 
-    // Find the workspace schema name
-    const schemaResult = await this.coreDataSource.query(
-      `SELECT "schema" FROM core."dataSource" WHERE "workspaceId" = $1 LIMIT 1`,
-      [workspaceId],
-    );
-
-    if (!schemaResult?.length) {
-      throw new Error(`No datasource found for workspace ${workspaceId}`);
-    }
-
-    const schemaName = schemaResult[0].schema;
+    const schemaName = getWorkspaceSchemaName(workspaceId);
 
     for (let i = 0; i < leads.length; i++) {
       const closeLead = leads[i];
