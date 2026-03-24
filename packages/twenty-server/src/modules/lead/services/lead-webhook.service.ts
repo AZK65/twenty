@@ -8,7 +8,7 @@ import {
   type AffiliateWebhookPayload,
   type LeadCreateData,
 } from 'src/modules/lead/dtos/webhook.dto';
-import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
+import { LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 @Injectable()
 export class LeadWebhookService {
@@ -147,9 +147,9 @@ export class LeadWebhookService {
     await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
       async () => {
         const leadRepository =
-          await this.globalWorkspaceOrmManager.getRepository<LeadWorkspaceEntity>(
+          await this.globalWorkspaceOrmManager.getRepository(
             workspaceId,
-            'lead',
+            LeadWorkspaceEntity,
             { shouldBypassPermissionChecks: true },
           );
 

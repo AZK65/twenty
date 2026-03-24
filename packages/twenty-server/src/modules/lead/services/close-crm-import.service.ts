@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
-import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
+import { LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 // Maps Close CRM status labels to Twenty lead stages
 const CLOSE_STATUS_TO_STAGE: Record<string, string> = {
@@ -94,9 +94,9 @@ export class CloseCrmImportService {
     await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
       async () => {
         const leadRepository =
-          await this.globalWorkspaceOrmManager.getRepository<LeadWorkspaceEntity>(
+          await this.globalWorkspaceOrmManager.getRepository(
             workspaceId,
-            'lead',
+            LeadWorkspaceEntity,
             { shouldBypassPermissionChecks: true },
           );
 

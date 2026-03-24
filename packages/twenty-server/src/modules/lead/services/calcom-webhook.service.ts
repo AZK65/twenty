@@ -8,7 +8,7 @@ import {
   type CalcomBookingPayload,
   type CalcomWebhookEvent,
 } from 'src/modules/lead/dtos/calcom-webhook.dto';
-import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
+import { LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 
 // Handles inbound Cal.com BOOKING_CREATED webhooks.
@@ -47,9 +47,9 @@ export class CalcomWebhookService {
     const result = await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
       async () => {
         const leadRepository =
-          await this.globalWorkspaceOrmManager.getRepository<LeadWorkspaceEntity>(
+          await this.globalWorkspaceOrmManager.getRepository(
             workspaceId,
-            'lead',
+            LeadWorkspaceEntity,
             { shouldBypassPermissionChecks: true },
           );
 
