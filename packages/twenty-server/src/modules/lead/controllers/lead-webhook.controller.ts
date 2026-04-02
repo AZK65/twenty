@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   InternalServerErrorException,
@@ -132,6 +133,12 @@ export class LeadWebhookController {
   //
   // On booking, this creates or updates a lead → MEETING_SCHEDULED, then fires
   // the REN outbound webhook with affiliateId, referralId, and MRR.
+  @Get('calcom')
+  @HttpCode(200)
+  handleCalcomPing(): WebhookResponse {
+    return { success: true };
+  }
+
   @Post('calcom')
   @HttpCode(200)
   async handleCalcomWebhook(
