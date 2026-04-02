@@ -60,7 +60,7 @@ COPY --chown=1000 --from=twenty-server-build /app/packages/twenty-server /app/pa
 COPY --chown=1000 --from=twenty-front-build /app/packages/twenty-front/build /app/packages/twenty-server/dist/front
 
 RUN mkdir -p /app/.local-storage /app/packages/twenty-server/.local-storage && \
-    chown -R 1000:1000 /app
+    chown 1000:1000 /app/.local-storage /app/packages/twenty-server/.local-storage
 
 USER 1000
 
