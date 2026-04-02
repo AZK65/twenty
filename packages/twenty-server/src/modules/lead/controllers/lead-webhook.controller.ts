@@ -147,19 +147,25 @@ export class LeadWebhookController {
       );
     }
 
-    if (!body.triggerEvent || !body.payload) {
+    if (!body.triggerEvent) {
       throw new BadRequestException(
-        'Invalid Cal.com webhook payload: missing triggerEvent or payload.',
+        'Invalid Cal.com webhook payload: missing triggerEvent.',
       );
     }
 
     if (body.triggerEvent !== 'BOOKING_CREATED') {
-      // Acknowledge non-booking events silently
+      // Acknowledge PING and other non-booking events silently
       this.logger.debug(
         `Ignoring Cal.com event "${body.triggerEvent}" — only BOOKING_CREATED is handled`,
       );
 
       return { success: true };
+    }
+
+    if (!body.payload) {
+      throw new BadRequestException(
+        'Invalid Cal.com webhook payload: missing payload.',
+      );
     }
 
     if (!body.payload.attendees?.length) {
