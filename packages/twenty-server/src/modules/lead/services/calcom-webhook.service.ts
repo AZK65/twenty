@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import {
   type CalcomBookingPayload,
   type CalcomWebhookEvent,
 } from 'src/modules/lead/dtos/calcom-webhook.dto';
-import { LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 
 // Handles inbound Cal.com BOOKING_CREATED webhooks.
@@ -21,7 +21,8 @@ export class CalcomWebhookService {
   private readonly logger = new Logger(CalcomWebhookService.name);
 
   constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     private readonly renWebhookService: RenWebhookService,
   ) {}
 
@@ -37,92 +38,88 @@ export class CalcomWebhookService {
     }
 
     const { affiliateId, referralId } = this.extractTrackingIds(booking);
+    const schema = getWorkspaceSchemaName(workspaceId);
 
     this.logger.log(
       `Cal.com booking "${booking.uid}" for ${attendee.email}, affiliateId=${affiliateId ?? 'none'}, referralId=${referralId ?? 'none'}`,
     );
 
-    const authContext = buildSystemAuthContext(workspaceId);
-
-    const result = await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
-      async () => {
-        const leadRepository =
-          await this.globalWorkspaceOrmManager.getRepository(
-            workspaceId,
-            LeadWorkspaceEntity,
-            { shouldBypassPermissionChecks: true },
-          );
-
-        // Try to find an existing lead by attendee email
-        let lead = await this.findLeadByEmail(leadRepository, attendee.email);
-        let isNew = false;
-
-        if (lead) {
-          // Update existing lead: set stage and attach affiliate data if not already set
-          const updates: Partial<LeadWorkspaceEntity> = {
-            stage: 'MEETING_SCHEDULED',
-          };
-
-          if (affiliateId && !lead.sourceDetail) {
-            updates.sourceDetail = this.buildSourceDetail(affiliateId, referralId);
-          }
-
-          if (!lead.sourceDetail && affiliateId) {
-            updates.source = 'PARTNER';
-          }
-
-          await leadRepository.update(lead.id, updates as Partial<LeadWorkspaceEntity>);
-
-          this.logger.log(
-            `Updated existing lead ${lead.id} to MEETING_SCHEDULED for Cal.com booking ${booking.uid}`,
-          );
-        } else {
-          // Create new lead from Cal.com attendee
-          isNew = true;
-          const leadId = uuidv4();
-          const firstName = attendee.firstName ?? attendee.name?.split(' ')[0] ?? '';
-          const lastName = attendee.lastName ?? attendee.name?.split(' ').slice(1).join(' ') ?? '';
-
-          await leadRepository.insert({
-            id: leadId,
-            name: attendee.name || `${firstName} ${lastName}`.trim() || attendee.email,
-            emails: {
-              primaryEmail: attendee.email,
-              additionalEmails: [],
-            },
-            phones: {
-              primaryPhoneNumber: this.extractPhone(booking) ?? '',
-              primaryPhoneCountryCode: '',
-              additionalPhones: [],
-            },
-            source: affiliateId ? 'PARTNER' : 'CAL_COM',
-            sourceDetail: this.buildSourceDetail(affiliateId, referralId),
-            needs: this.buildNeedsFromBooking(booking),
-            stage: 'MEETING_SCHEDULED',
-            priority: 'MEDIUM',
-            enrichmentStatus: 'NOT_ENRICHED',
-          } as Partial<LeadWorkspaceEntity>);
-
-          lead = { id: leadId } as LeadWorkspaceEntity;
-
-          this.logger.log(
-            `Created new lead ${leadId} from Cal.com booking ${booking.uid}`,
-          );
-        }
-
-        return { leadId: lead.id, isNew };
-      },
-      authContext,
+    // Check if lead already exists by email
+    const existing = await this.dataSource.query(
+      `SELECT id, "sourceDetail", stage FROM "${schema}"."lead" WHERE "emailsPrimaryEmail" = $1 LIMIT 1`,
+      [attendee.email],
     );
 
-    // Fire the REN webhook — the lead is now in MEETING_SCHEDULED with affiliate data
-    // We fire it directly here instead of relying on the DB event listener
-    // because the listener may not resolve the full affiliate context from a raw update.
+    let leadId: string;
+    let isNew: boolean;
+
+    if (existing.length > 0) {
+      leadId = existing[0].id;
+      isNew = false;
+
+      const updates: string[] = [`"stage" = 'MEETING_SCHEDULED'`];
+      const params: unknown[] = [];
+      let paramIndex = 1;
+
+      if (affiliateId && !existing[0].sourceDetail) {
+        updates.push(`"sourceDetail" = $${paramIndex}`);
+        params.push(this.buildSourceDetail(affiliateId, referralId));
+        paramIndex++;
+
+        updates.push(`"source" = 'PARTNER'`);
+      }
+
+      params.push(leadId);
+      await this.dataSource.query(
+        `UPDATE "${schema}"."lead" SET ${updates.join(', ')}, "updatedAt" = NOW() WHERE id = $${paramIndex}`,
+        params,
+      );
+
+      this.logger.log(
+        `Updated existing lead ${leadId} to MEETING_SCHEDULED for Cal.com booking ${booking.uid}`,
+      );
+    } else {
+      leadId = uuidv4();
+      isNew = true;
+
+      const name = attendee.name
+        || [attendee.firstName, attendee.lastName].filter(Boolean).join(' ')
+        || attendee.email;
+      const phone = this.extractPhone(booking) ?? '';
+      const source = affiliateId ? 'PARTNER' : 'OTHER';
+      const sourceDetail = this.buildSourceDetail(affiliateId, referralId);
+      const needs = this.buildNeedsFromBooking(booking);
+
+      await this.dataSource.query(
+        `INSERT INTO "${schema}"."lead" (
+          "id", "name",
+          "emailsPrimaryEmail", "emailsAdditionalEmails",
+          "phonesPrimaryPhoneNumber", "phonesPrimaryPhoneCountryCode", "phonesPrimaryPhoneCallingCode", "phonesAdditionalPhones",
+          "source", "sourceDetail", "needs",
+          "stage", "priority", "enrichmentStatus",
+          "position", "createdAt", "updatedAt"
+        ) VALUES (
+          $1, $2,
+          $3, '[]'::jsonb,
+          $4, '', '', '[]'::jsonb,
+          $5, $6, $7,
+          'MEETING_SCHEDULED', 'HIGH', 'NOT_ENRICHED',
+          0, NOW(), NOW()
+        )`,
+        [leadId, name, attendee.email, phone, source, sourceDetail, needs],
+      );
+
+      this.logger.log(
+        `Created new lead ${leadId} from Cal.com booking ${booking.uid}`,
+      );
+    }
+
+    // Fire the REN webhook
     const mrr = this.extractMrr(booking);
 
     await this.renWebhookService.sendCallBooked({
       event: 'call.booked',
-      leadId: result.leadId,
+      leadId,
       leadName: attendee.name ?? attendee.email,
       affiliateId: affiliateId ?? null,
       referralId: referralId ?? null,
@@ -133,7 +130,7 @@ export class CalcomWebhookService {
       timestamp: new Date().toISOString(),
     });
 
-    return result;
+    return { leadId, isNew };
   }
 
   // Extracts affiliateId and referralId from Cal.com booking data.
@@ -146,7 +143,6 @@ export class CalcomWebhookService {
     let affiliateId: string | null = null;
     let referralId: string | null = null;
 
-    // 1. Check metadata (URL params passed to Cal.com booking page)
     if (booking.metadata) {
       affiliateId = this.asString(booking.metadata.affiliateId)
         ?? this.asString(booking.metadata.affiliate_id)
@@ -158,7 +154,6 @@ export class CalcomWebhookService {
         ?? this.asString(booking.metadata.rid);
     }
 
-    // 2. Check responses (custom questions on the booking form)
     if (booking.responses) {
       if (!affiliateId) {
         affiliateId = this.extractResponseValue(booking.responses, [
@@ -173,7 +168,6 @@ export class CalcomWebhookService {
       }
     }
 
-    // 3. Check customInputs (legacy Cal.com custom fields)
     if (booking.customInputs && (!affiliateId || !referralId)) {
       if (!affiliateId) {
         affiliateId = this.asString(booking.customInputs.affiliateId)
@@ -210,7 +204,6 @@ export class CalcomWebhookService {
     return null;
   }
 
-  // Extract MRR from metadata or responses
   private extractMrr(
     booking: CalcomBookingPayload,
   ): { amount: number; currency: string } | null {
@@ -232,7 +225,6 @@ export class CalcomWebhookService {
   }
 
   private extractPhone(booking: CalcomBookingPayload): string | null {
-    // Check responses for phone number
     const phoneKeys = ['attendeePhoneNumber', 'phone', 'phone_number', 'phoneNumber'];
 
     for (const key of phoneKeys) {
@@ -283,21 +275,6 @@ export class CalcomWebhookService {
     }
 
     return affiliateId ?? referralId ?? null;
-  }
-
-  private async findLeadByEmail(
-    repository: { find: (options: unknown) => Promise<LeadWorkspaceEntity[]> },
-    email: string,
-  ): Promise<LeadWorkspaceEntity | null> {
-    // Search leads whose primary email matches
-    const leads = await repository.find({
-      where: {
-        emails: { primaryEmail: email },
-      },
-      take: 1,
-    });
-
-    return leads[0] ?? null;
   }
 
   private asString(value: unknown): string | null {

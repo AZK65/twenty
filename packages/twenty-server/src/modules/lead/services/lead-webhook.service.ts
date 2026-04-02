@@ -1,21 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
+import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import {
   type AffiliateWebhookPayload,
   type LeadCreateData,
 } from 'src/modules/lead/dtos/webhook.dto';
-import { LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 @Injectable()
 export class LeadWebhookService {
   private readonly logger = new Logger(LeadWebhookService.name);
 
   constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async createLeadFromAffiliate(
@@ -80,21 +81,13 @@ export class LeadWebhookService {
       'tel',
     ]) ?? '';
 
-    const company = this.extractString(data, [
-      'company',
-      'organization',
-      'company_name',
-      'companyName',
-      'org',
-    ]);
-
     const source = this.extractString(data, [
       'source',
       'utm_source',
       'utmSource',
       'referrer',
       'channel',
-    ]) ?? 'WEBHOOK';
+    ]) ?? 'OTHER';
 
     const notes = this.extractString(data, [
       'notes',
@@ -104,8 +97,14 @@ export class LeadWebhookService {
       'comments',
     ]);
 
-    // Build needs field from notes and raw payload
     const needsParts: string[] = [];
+    const company = this.extractString(data, [
+      'company',
+      'organization',
+      'company_name',
+      'companyName',
+      'org',
+    ]);
 
     if (company) {
       needsParts.push(`Company: ${company}`);
@@ -116,6 +115,10 @@ export class LeadWebhookService {
     }
 
     needsParts.push(`[Raw webhook payload]: ${JSON.stringify(data)}`);
+
+    // Map source to valid enum
+    const validSources = ['WEBSITE', 'REFERRAL', 'COLD_OUTREACH', 'SOCIAL_MEDIA', 'PAID_AD', 'EVENT', 'PARTNER', 'OTHER'];
+    const mappedSource = validSources.includes(source.toUpperCase()) ? source.toUpperCase() : 'OTHER';
 
     return {
       name,
@@ -128,7 +131,7 @@ export class LeadWebhookService {
         primaryPhoneCountryCode: '',
         additionalPhones: [],
       },
-      source,
+      source: mappedSource,
       sourceDetail: null,
       needs: needsParts.join('\n'),
       stage: 'NEW',
@@ -141,28 +144,49 @@ export class LeadWebhookService {
     leadData: LeadCreateData,
     workspaceId: string,
   ): Promise<{ leadId: string }> {
-    const authContext = buildSystemAuthContext(workspaceId);
+    const schema = getWorkspaceSchemaName(workspaceId);
     const leadId = uuidv4();
 
-    await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
-      async () => {
-        const leadRepository =
-          await this.globalWorkspaceOrmManager.getRepository(
-            workspaceId,
-            LeadWorkspaceEntity,
-            { shouldBypassPermissionChecks: true },
-          );
+    // Map source to valid enum
+    const validSources = ['WEBSITE', 'REFERRAL', 'COLD_OUTREACH', 'SOCIAL_MEDIA', 'PAID_AD', 'EVENT', 'PARTNER', 'OTHER'];
+    const source = validSources.includes(leadData.source?.toUpperCase())
+      ? leadData.source.toUpperCase()
+      : 'OTHER';
 
-        await leadRepository.insert({
-          id: leadId,
-          ...leadData,
-        } as Partial<LeadWorkspaceEntity>);
+    await this.dataSource.query(
+      `INSERT INTO "${schema}"."lead" (
+        "id", "name",
+        "emailsPrimaryEmail", "emailsAdditionalEmails",
+        "phonesPrimaryPhoneNumber", "phonesPrimaryPhoneCountryCode", "phonesPrimaryPhoneCallingCode", "phonesAdditionalPhones",
+        "source", "sourceDetail", "needs",
+        "stage", "priority", "enrichmentStatus",
+        "position", "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2,
+        $3, $4::jsonb,
+        $5, $6, '', '[]'::jsonb,
+        $7, $8, $9,
+        $10, $11, $12,
+        0, NOW(), NOW()
+      )`,
+      [
+        leadId,
+        leadData.name,
+        leadData.emails.primaryEmail,
+        JSON.stringify(leadData.emails.additionalEmails),
+        leadData.phones.primaryPhoneNumber,
+        leadData.phones.primaryPhoneCountryCode,
+        source,
+        leadData.sourceDetail,
+        leadData.needs,
+        leadData.stage,
+        leadData.priority,
+        leadData.enrichmentStatus,
+      ],
+    );
 
-        this.logger.log(
-          `Created lead ${leadId} in workspace ${workspaceId} from webhook (source: ${leadData.source})`,
-        );
-      },
-      authContext,
+    this.logger.log(
+      `Created lead ${leadId} in workspace ${workspaceId} from webhook (source: ${source})`,
     );
 
     return { leadId };
