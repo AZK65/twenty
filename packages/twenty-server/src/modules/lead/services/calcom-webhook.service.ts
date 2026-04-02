@@ -57,15 +57,40 @@ export class CalcomWebhookService {
       leadId = existing[0].id;
       isNew = false;
 
-      const updates: string[] = [`"stage" = 'MEETING_SCHEDULED'`];
-      const params: unknown[] = [];
-      let paramIndex = 1;
+      const revenue = this.extractResponseValue(booking.responses ?? {}, ['revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue']);
+      const meetingLink = this.extractMeetingLink(booking);
+      const notes = this.extractNotes(booking);
+
+      const updates: string[] = [
+        `"stage" = 'MEETING_SCHEDULED'`,
+        `"nextFollowUpDate" = $1`,
+      ];
+      const params: unknown[] = [booking.startTime];
+      let paramIndex = 2;
+
+      if (meetingLink) {
+        updates.push(`"linkedinLinkPrimaryLinkLabel" = 'Meeting Link'`);
+        updates.push(`"linkedinLinkPrimaryLinkUrl" = $${paramIndex}`);
+        params.push(meetingLink);
+        paramIndex++;
+      }
+
+      if (revenue) {
+        updates.push(`"companyRevenue" = $${paramIndex}`);
+        params.push(revenue);
+        paramIndex++;
+      }
+
+      if (notes) {
+        updates.push(`"needs" = $${paramIndex}`);
+        params.push(notes);
+        paramIndex++;
+      }
 
       if (affiliateId && !existing[0].sourceDetail) {
         updates.push(`"sourceDetail" = $${paramIndex}`);
         params.push(this.buildSourceDetail(affiliateId, referralId));
         paramIndex++;
-
         updates.push(`"source" = 'PARTNER'`);
       }
 
@@ -86,9 +111,12 @@ export class CalcomWebhookService {
         || [attendee.firstName, attendee.lastName].filter(Boolean).join(' ')
         || attendee.email;
       const phone = this.extractPhone(booking) ?? '';
-      const source = affiliateId ? 'PARTNER' : 'OTHER';
-      const sourceDetail = this.buildSourceDetail(affiliateId, referralId);
-      const needs = this.buildNeedsFromBooking(booking);
+      const calSource = this.extractResponseValue(booking.responses ?? {}, ['source', 'Source']);
+      const source = affiliateId ? 'PARTNER' : this.mapSource(calSource);
+      const sourceDetail = this.buildSourceDetail(affiliateId, referralId) ?? calSource;
+      const needs = this.extractNotes(booking);
+      const revenue = this.extractResponseValue(booking.responses ?? {}, ['revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue']);
+      const meetingLink = this.extractMeetingLink(booking);
 
       await this.dataSource.query(
         `INSERT INTO "${schema}"."lead" (
@@ -97,6 +125,9 @@ export class CalcomWebhookService {
           "phonesPrimaryPhoneNumber", "phonesPrimaryPhoneCountryCode", "phonesPrimaryPhoneCallingCode", "phonesAdditionalPhones",
           "source", "sourceDetail", "needs",
           "stage", "priority", "enrichmentStatus",
+          "companyRevenue",
+          "nextFollowUpDate",
+          "linkedinLinkPrimaryLinkLabel", "linkedinLinkPrimaryLinkUrl", "linkedinLinkSecondaryLinks",
           "position", "createdAt", "updatedAt"
         ) VALUES (
           $1, $2,
@@ -104,9 +135,12 @@ export class CalcomWebhookService {
           $4, '', '', '[]'::jsonb,
           $5, $6, $7,
           'MEETING_SCHEDULED', 'HIGH', 'NOT_ENRICHED',
+          $8,
+          $9,
+          'Meeting Link', $10, '[]'::jsonb,
           0, NOW(), NOW()
         )`,
-        [leadId, name, attendee.email, phone, source, sourceDetail, needs],
+        [leadId, name, attendee.email, phone, source, sourceDetail, needs, revenue, booking.startTime, meetingLink],
       );
 
       this.logger.log(
@@ -242,10 +276,8 @@ export class CalcomWebhookService {
     return null;
   }
 
-  private buildNeedsFromBooking(booking: CalcomBookingPayload): string {
+  private extractNotes(booking: CalcomBookingPayload): string {
     const parts: string[] = [];
-
-    parts.push(`Cal.com booking: ${booking.title}`);
 
     if (booking.description) {
       parts.push(booking.description);
@@ -255,13 +287,49 @@ export class CalcomWebhookService {
       parts.push(booking.additionalNotes);
     }
 
-    parts.push(`Scheduled: ${booking.startTime} – ${booking.endTime}`);
+    const notes = this.extractResponseValue(booking.responses ?? {}, ['notes', 'Notes', 'additional_notes']);
 
-    if (booking.location) {
-      parts.push(`Location: ${booking.location}`);
+    if (notes) {
+      parts.push(notes);
     }
 
-    return parts.join('\n');
+    return parts.join('\n') || '';
+  }
+
+  private extractMeetingLink(booking: CalcomBookingPayload): string {
+    // Check metadata for video call URL
+    if (booking.videoCallData?.url) {
+      return booking.videoCallData.url;
+    }
+
+    const metaUrl = this.asString((booking.metadata as Record<string, unknown>)?.videoCallUrl);
+
+    if (metaUrl) {
+      return metaUrl;
+    }
+
+    // Fall back to location if it's a URL
+    if (booking.location && booking.location.startsWith('http')) {
+      return booking.location;
+    }
+
+    return '';
+  }
+
+  // Map Cal.com source response to valid lead source enum
+  private mapSource(source: string | null): string {
+    if (!source) return 'OTHER';
+    const lower = source.toLowerCase();
+
+    if (lower.includes('referral') || lower.includes('affiliate')) return 'REFERRAL';
+    if (lower.includes('social') || lower.includes('instagram') || lower.includes('twitter') || lower.includes('tiktok')) return 'SOCIAL_MEDIA';
+    if (lower.includes('website') || lower.includes('google') || lower.includes('seo')) return 'WEBSITE';
+    if (lower.includes('ad') || lower.includes('paid') || lower.includes('ppc')) return 'PAID_AD';
+    if (lower.includes('cold') || lower.includes('outreach') || lower.includes('outbound')) return 'COLD_OUTREACH';
+    if (lower.includes('event') || lower.includes('conference')) return 'EVENT';
+    if (lower.includes('partner')) return 'PARTNER';
+
+    return 'OTHER';
   }
 
   private buildSourceDetail(
