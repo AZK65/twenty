@@ -139,13 +139,11 @@ export class LeadWebhookController {
     @Headers('x-workspace-id') headerWorkspaceId: string | undefined,
     @Query('workspaceId') queryWorkspaceId: string | undefined,
   ): Promise<WebhookResponse> {
-    const workspaceId = headerWorkspaceId ?? queryWorkspaceId;
-
-    if (!workspaceId) {
-      throw new BadRequestException(
-        'Missing workspaceId. Provide it via x-workspace-id header or ?workspaceId= query param.',
-      );
-    }
+    // Default to the primary workspace if no workspaceId is provided
+    const workspaceId = headerWorkspaceId
+      ?? queryWorkspaceId
+      ?? process.env.DEFAULT_WORKSPACE_ID
+      ?? 'dd98a860-76dd-4b80-b136-41d41be170b3';
 
     if (!body.triggerEvent) {
       throw new BadRequestException(
