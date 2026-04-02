@@ -135,7 +135,7 @@ export class LeadWebhookController {
   @Post('calcom')
   @HttpCode(200)
   async handleCalcomWebhook(
-    @Body() body: CalcomWebhookEvent,
+    @Body() body: Record<string, unknown>,
     @Headers('x-workspace-id') headerWorkspaceId: string | undefined,
     @Query('workspaceId') queryWorkspaceId: string | undefined,
   ): Promise<WebhookResponse> {
@@ -145,36 +145,24 @@ export class LeadWebhookController {
       ?? process.env.DEFAULT_WORKSPACE_ID
       ?? 'dd98a860-76dd-4b80-b136-41d41be170b3';
 
-    if (!body.triggerEvent) {
-      throw new BadRequestException(
-        'Invalid Cal.com webhook payload: missing triggerEvent.',
-      );
-    }
-
-    if (body.triggerEvent !== 'BOOKING_CREATED') {
-      // Acknowledge PING and other non-booking events silently
-      this.logger.debug(
-        `Ignoring Cal.com event "${body.triggerEvent}" — only BOOKING_CREATED is handled`,
-      );
-
+    // Accept empty body, PING, or any non-BOOKING_CREATED event
+    if (!body || !body.triggerEvent || body.triggerEvent !== 'BOOKING_CREATED') {
       return { success: true };
     }
 
-    if (!body.payload) {
-      throw new BadRequestException(
-        'Invalid Cal.com webhook payload: missing payload.',
-      );
+    const event = body as unknown as CalcomWebhookEvent;
+
+    if (!event.payload) {
+      return { success: true };
     }
 
-    if (!body.payload.attendees?.length) {
-      throw new BadRequestException(
-        'Cal.com booking has no attendees.',
-      );
+    if (!event.payload.attendees?.length) {
+      return { success: true };
     }
 
     try {
       const result = await this.calcomWebhookService.handleBookingCreated(
-        body,
+        event,
         workspaceId,
       );
 
