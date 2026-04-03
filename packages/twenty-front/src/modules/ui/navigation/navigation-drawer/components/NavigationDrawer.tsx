@@ -22,6 +22,23 @@ import { MOBILE_VIEWPORT, themeCssVariables } from 'twenty-ui/theme-constants';
 import { NavigationDrawerBackButton } from './NavigationDrawerBackButton';
 import { NavigationDrawerHeader } from './NavigationDrawerHeader';
 
+const StyledSpacer = styled.div`
+  flex-grow: 1;
+`;
+
+const StyledLogoContainer = styled.div`
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: ${themeCssVariables.spacing[2]} 0;
+  opacity: 0.5;
+`;
+
+const StyledLogo = styled.img`
+  height: 24px;
+  width: 24px;
+`;
+
 export type NavigationDrawerProps = {
   children?: ReactNode;
   className?: string;
@@ -134,6 +151,13 @@ export const NavigationDrawer = ({
             <NavigationDrawerHeader showCollapseButton />
           )}
           {children}
+          <StyledSpacer />
+          <StyledLogoContainer>
+            <StyledLogo
+              src="/images/integrations/apptics-logo.svg"
+              alt="Apptics"
+            />
+          </StyledLogoContainer>
         </StyledContainer>
 
         {isNavigationDrawerExpanded && !isMobile && !isSettingsDrawer && (
