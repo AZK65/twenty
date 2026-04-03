@@ -18,29 +18,31 @@ COPY ./packages/twenty-sdk/package.json /app/packages/twenty-sdk/
 RUN yarn && yarn cache clean && npx nx reset
 
 
-# Build the backend
-FROM common-deps AS twenty-server-build
+# Build shared packages (used by both frontend and backend)
+FROM common-deps AS shared-build
 
-COPY ./packages/twenty-emails /app/packages/twenty-emails
 COPY ./packages/twenty-shared /app/packages/twenty-shared
-COPY ./packages/twenty-ui /app/packages/twenty-ui
 COPY ./packages/twenty-sdk /app/packages/twenty-sdk
+COPY ./packages/twenty-emails /app/packages/twenty-emails
+COPY ./packages/twenty-ui /app/packages/twenty-ui
+
+
+# Build the backend
+FROM shared-build AS twenty-server-build
+
 COPY ./packages/twenty-server /app/packages/twenty-server
 
 RUN npx nx run twenty-server:build
 RUN yarn workspaces focus --production twenty-emails twenty-shared twenty-sdk twenty-server
 
 
-# Build the frontend
-FROM common-deps AS twenty-front-build
+# Build the frontend (cached separately — only rebuilds when front/ui/shared change)
+FROM shared-build AS twenty-front-build
 
 ARG REACT_APP_SERVER_BASE_URL
 ENV REACT_APP_SERVER_BASE_URL=$REACT_APP_SERVER_BASE_URL
 
 COPY ./packages/twenty-front /app/packages/twenty-front
-COPY ./packages/twenty-ui /app/packages/twenty-ui
-COPY ./packages/twenty-shared /app/packages/twenty-shared
-COPY ./packages/twenty-sdk /app/packages/twenty-sdk
 RUN npx nx build twenty-front
 
 
@@ -56,7 +58,6 @@ RUN chmod +x /app/entrypoint.sh
 WORKDIR /app/packages/twenty-server
 
 COPY --chown=1000 --from=twenty-server-build /app /app
-COPY --chown=1000 --from=twenty-server-build /app/packages/twenty-server /app/packages/twenty-server
 COPY --chown=1000 --from=twenty-front-build /app/packages/twenty-front/build /app/packages/twenty-server/dist/front
 
 RUN mkdir -p /app/.local-storage /app/packages/twenty-server/.local-storage && \
@@ -66,4 +67,3 @@ USER 1000
 
 CMD ["node", "dist/main"]
 ENTRYPOINT ["/app/entrypoint.sh"]
-
