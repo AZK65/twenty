@@ -15,6 +15,7 @@ import { CloseCrmImportService } from 'src/modules/lead/services/close-crm-impor
 import { LeadEnrichmentService } from 'src/modules/lead/services/lead-enrichment.service';
 import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
+import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 
 @Module({
   imports: [],
@@ -33,6 +34,7 @@ import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service
     RenCallBookedListener,
     RenCustomerStatusListener,
     RenWebhookService,
+    SendblueService,
     WebhookAuthGuard,
   ],
   exports: [
@@ -41,6 +43,7 @@ import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service
     LeadEnrichmentService,
     LeadWebhookService,
     RenWebhookService,
+    SendblueService,
   ],
 })
 export class LeadModule {}

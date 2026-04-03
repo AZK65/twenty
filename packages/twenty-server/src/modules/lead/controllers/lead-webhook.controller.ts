@@ -26,6 +26,7 @@ import {
   type ImportResult,
 } from 'src/modules/lead/services/close-crm-import.service';
 import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
+import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 
 @Controller('webhooks/leads')
 @UseGuards(PublicEndpointGuard, NoPermissionGuard, WebhookAuthGuard)
@@ -36,6 +37,7 @@ export class LeadWebhookController {
     private readonly leadWebhookService: LeadWebhookService,
     private readonly calcomWebhookService: CalcomWebhookService,
     private readonly closeCrmImportService: CloseCrmImportService,
+    private readonly sendblueService: SendblueService,
   ) {}
 
   @Post('affiliate')
@@ -232,6 +234,44 @@ export class LeadWebhookController {
       throw new InternalServerErrorException(
         'Failed to import leads from Close CRM.',
       );
+    }
+  }
+
+  // Sendblue inbound message webhook.
+  // Set this URL in Sendblue dashboard → Settings → Webhooks → Inbound:
+  //   POST /webhooks/leads/sendblue/inbound
+  //
+  // When a lead replies "reschedule", auto-sends the Cal.com reschedule link.
+  // All inbound messages are logged to the lead's timeline.
+  @Post('sendblue/inbound')
+  @HttpCode(200)
+  async handleSendblueInbound(
+    @Body() body: Record<string, unknown>,
+  ): Promise<WebhookResponse> {
+    const fromNumber = body.from_number as string ?? body.number as string;
+    const content = body.content as string ?? '';
+
+    if (!fromNumber || !content) {
+      return { success: true };
+    }
+
+    const workspaceId = process.env.DEFAULT_WORKSPACE_ID
+      ?? 'dd98a860-76dd-4b80-b136-41d41be170b3';
+
+    try {
+      await this.sendblueService.handleInboundMessage(
+        fromNumber,
+        content,
+        workspaceId,
+      );
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(
+        `Sendblue inbound failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      return { success: true };
     }
   }
 }

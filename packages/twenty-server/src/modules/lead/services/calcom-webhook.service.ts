@@ -10,6 +10,7 @@ import {
   type CalcomWebhookEvent,
 } from 'src/modules/lead/dtos/calcom-webhook.dto';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
+import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 
 // Handles inbound Cal.com BOOKING_CREATED webhooks.
 // 1. Finds or creates a lead from the attendee + affiliate/referral data
@@ -24,6 +25,7 @@ export class CalcomWebhookService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly renWebhookService: RenWebhookService,
+    private readonly sendblueService: SendblueService,
   ) {}
 
   async handleBookingCreated(
@@ -163,6 +165,19 @@ export class CalcomWebhookService {
       workspaceId,
       timestamp: new Date().toISOString(),
     });
+
+    // Send iMessage welcome via Sendblue
+    const phone = this.extractPhone(booking) ?? '';
+
+    if (phone) {
+      await this.sendblueService.sendCallBookedMessage(
+        leadId,
+        attendee.name ?? attendee.email,
+        phone,
+        booking.startTime,
+        workspaceId,
+      );
+    }
 
     return { leadId, isNew };
   }
