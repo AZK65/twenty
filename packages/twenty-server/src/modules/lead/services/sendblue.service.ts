@@ -17,7 +17,6 @@ import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/ge
 //   SENDBLUE_WEBHOOK_URL — (set in Sendblue dashboard) inbound message webhook
 
 const SENDBLUE_API_URL = 'https://api.sendblue.co/api/send-message';
-const RESCHEDULE_URL = 'https://cal.com/team/apptics/intro';
 
 type SendblueResponse = {
   message_handle?: string;
@@ -39,6 +38,7 @@ export class SendblueService {
     leadName: string,
     phoneNumber: string,
     callTime: string,
+    bookingUid: string,
     workspaceId: string,
   ): Promise<SendblueResponse | null> {
     const apiKey = process.env.SENDBLUE_API_KEY;
@@ -77,6 +77,17 @@ export class SendblueService {
 
     const result = await this.sendMessage(phoneNumber, fromNumber, message, apiKey, apiSecret);
 
+    // Store booking UID on the lead so we can build the reschedule link later
+    if (bookingUid) {
+      const schema = getWorkspaceSchemaName(workspaceId);
+
+      await this.dataSource.query(
+        `UPDATE "${schema}"."lead" SET "linkedinLinkPrimaryLinkLabel" = 'Reschedule Link',
+         "linkedinLinkPrimaryLinkUrl" = $1 WHERE id = $2`,
+        [`https://cal.com/reschedule/${bookingUid}`, leadId],
+      );
+    }
+
     // Log to timeline
     await this.logToTimeline(leadId, workspaceId, 'iMessage sent', message);
 
@@ -107,8 +118,22 @@ export class SendblueService {
     // Check if message is a reschedule request
     const normalized = content.trim().toLowerCase();
 
-    if (normalized === 'reschedule' || normalized === 'reschedule') {
-      const reply = `No worries! Here's your reschedule link:\n${RESCHEDULE_URL}`;
+    if (normalized === 'reschedule') {
+      let rescheduleUrl = 'https://cal.com/team/apptics/intro';
+
+      // Try to get the lead's specific reschedule link
+      if (lead) {
+        const linkResult = await this.dataSource.query(
+          `SELECT "linkedinLinkPrimaryLinkUrl" FROM "${schema}"."lead" WHERE id = $1`,
+          [lead.id],
+        );
+
+        if (linkResult[0]?.linkedinLinkPrimaryLinkUrl) {
+          rescheduleUrl = linkResult[0].linkedinLinkPrimaryLinkUrl;
+        }
+      }
+
+      const reply = `No worries! Here's your reschedule link:\n${rescheduleUrl}`;
 
       await this.sendMessage(fromNumber, sendblueNumber, reply, apiKey, apiSecret);
 

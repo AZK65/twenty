@@ -175,6 +175,7 @@ export class CalcomWebhookService {
         attendee.name ?? attendee.email,
         phone,
         booking.startTime,
+        booking.uid,
         workspaceId,
       );
     }
