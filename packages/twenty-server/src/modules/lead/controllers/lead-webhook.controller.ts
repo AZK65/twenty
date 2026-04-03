@@ -237,19 +237,20 @@ export class LeadWebhookController {
     }
   }
 
-  // Sendblue inbound message webhook.
-  // Set this URL in Sendblue dashboard → Settings → Webhooks → Inbound:
-  //   POST /webhooks/leads/sendblue/inbound
+  // Bloo.io inbound message webhook.
+  // Webhook auto-registered via API.
+  // Bloo payload: { event, sender, text, message_id, ... }
   //
   // When a lead replies "reschedule", auto-sends the Cal.com reschedule link.
   // All inbound messages are logged to the lead's timeline.
   @Post('sendblue/inbound')
   @HttpCode(200)
-  async handleSendblueInbound(
+  async handleBlooInbound(
     @Body() body: Record<string, unknown>,
   ): Promise<WebhookResponse> {
-    const fromNumber = body.from_number as string ?? body.number as string;
-    const content = body.content as string ?? '';
+    // Bloo sends: sender, text, event
+    const fromNumber = body.sender as string ?? body.from_number as string ?? '';
+    const content = body.text as string ?? body.content as string ?? '';
 
     if (!fromNumber || !content) {
       return { success: true };
@@ -268,7 +269,7 @@ export class LeadWebhookController {
       return { success: true };
     } catch (error) {
       this.logger.error(
-        `Sendblue inbound failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Bloo inbound failed: ${error instanceof Error ? error.message : String(error)}`,
       );
 
       return { success: true };
