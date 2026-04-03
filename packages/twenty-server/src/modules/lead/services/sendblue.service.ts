@@ -6,27 +6,25 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 
-// Sendblue iMessage integration.
+// Bloo.io iMessage integration (blooio.com)
 // Sends an auto-welcome iMessage when a lead books a call,
 // and handles inbound "reschedule" replies.
 //
 // Environment variables:
-//   SENDBLUE_API_KEY     — Sendblue API key ID
-//   SENDBLUE_API_SECRET  — Sendblue API secret
-//   SENDBLUE_FROM_NUMBER — Your Sendblue phone number (E.164)
-//   SENDBLUE_WEBHOOK_URL — (set in Sendblue dashboard) inbound message webhook
+//   BLOO_API_KEY — Bloo API key (Bearer token)
 
-const SENDBLUE_API_URL = 'https://api.sendblue.co/api/send-message';
+const BLOO_API_URL = 'https://backend.blooio.com/v2/api';
 
-type SendblueResponse = {
-  message_handle?: string;
+type BlooResponse = {
+  message_id?: string;
   status?: string;
-  error_message?: string;
+  error?: string;
+  message?: string;
 };
 
 @Injectable()
 export class SendblueService {
-  private readonly logger = new Logger(SendblueService.name);
+  private readonly logger = new Logger('BlooService');
 
   constructor(
     @InjectDataSource()
@@ -40,13 +38,11 @@ export class SendblueService {
     callTime: string,
     bookingUid: string,
     workspaceId: string,
-  ): Promise<SendblueResponse | null> {
-    const apiKey = process.env.SENDBLUE_API_KEY;
-    const apiSecret = process.env.SENDBLUE_API_SECRET;
-    const fromNumber = process.env.SENDBLUE_FROM_NUMBER;
+  ): Promise<BlooResponse | null> {
+    const apiKey = process.env.BLOO_API_KEY;
 
-    if (!apiKey || !apiSecret || !fromNumber) {
-      this.logger.debug('Sendblue not configured — skipping iMessage');
+    if (!apiKey) {
+      this.logger.debug('BLOO_API_KEY not configured — skipping iMessage');
 
       return null;
     }
@@ -75,9 +71,9 @@ export class SendblueService {
       `Your call is on ${formattedDate} at ${formattedTime}. See you there!\n\n` +
       `If you need to reschedule, just reply "reschedule" 🗓️`;
 
-    const result = await this.sendMessage(phoneNumber, fromNumber, message, apiKey, apiSecret);
+    const result = await this.sendMessage(phoneNumber, message, apiKey);
 
-    // Store booking UID on the lead so we can build the reschedule link later
+    // Store booking UID on the lead for reschedule link
     if (bookingUid) {
       const schema = getWorkspaceSchemaName(workspaceId);
 
@@ -99,16 +95,15 @@ export class SendblueService {
     content: string,
     workspaceId: string,
   ): Promise<void> {
-    const apiKey = process.env.SENDBLUE_API_KEY;
-    const apiSecret = process.env.SENDBLUE_API_SECRET;
-    const sendblueNumber = process.env.SENDBLUE_FROM_NUMBER;
+    const apiKey = process.env.BLOO_API_KEY;
 
-    if (!apiKey || !apiSecret || !sendblueNumber) {
+    if (!apiKey) {
       return;
     }
 
-    // Log inbound message to timeline
     const schema = getWorkspaceSchemaName(workspaceId);
+
+    // Log inbound message to timeline
     const lead = await this.findLeadByPhone(schema, fromNumber);
 
     if (lead) {
@@ -121,7 +116,6 @@ export class SendblueService {
     if (normalized === 'reschedule') {
       let rescheduleUrl = 'https://cal.com/team/apptics/intro';
 
-      // Try to get the lead's specific reschedule link
       if (lead) {
         const linkResult = await this.dataSource.query(
           `SELECT "linkedinLinkPrimaryLinkUrl" FROM "${schema}"."lead" WHERE id = $1`,
@@ -135,7 +129,7 @@ export class SendblueService {
 
       const reply = `No worries! Here's your reschedule link:\n${rescheduleUrl}`;
 
-      await this.sendMessage(fromNumber, sendblueNumber, reply, apiKey, apiSecret);
+      await this.sendMessage(fromNumber, reply, apiKey);
 
       if (lead) {
         await this.logToTimeline(lead.id, workspaceId, 'iMessage sent', reply);
@@ -147,34 +141,29 @@ export class SendblueService {
 
   private async sendMessage(
     to: string,
-    from: string,
     content: string,
     apiKey: string,
-    apiSecret: string,
-  ): Promise<SendblueResponse> {
+  ): Promise<BlooResponse> {
+    // URL-encode the phone number for the chat ID
+    const chatId = encodeURIComponent(to);
+
     try {
-      const response = await fetch(SENDBLUE_API_URL, {
+      const response = await fetch(`${BLOO_API_URL}/chats/${chatId}/messages`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'sb-api-key-id': apiKey,
-          'sb-api-secret-key': apiSecret,
         },
-        body: JSON.stringify({
-          number: to,
-          from_number: from,
-          content,
-          status_callback: '',
-        }),
+        body: JSON.stringify({ text: content }),
         signal: AbortSignal.timeout(10_000),
       });
 
-      const result = await response.json() as SendblueResponse;
+      const result = await response.json() as BlooResponse;
 
-      if (result.error_message) {
-        this.logger.warn(`Sendblue error for ${to}: ${result.error_message}`);
+      if (result.error) {
+        this.logger.warn(`Bloo error for ${to}: ${result.message}`);
       } else {
-        this.logger.log(`iMessage sent to ${to}: ${result.message_handle}`);
+        this.logger.log(`iMessage sent to ${to}: ${result.message_id}`);
       }
 
       return result;
@@ -183,7 +172,7 @@ export class SendblueService {
         `Failed to send iMessage to ${to}: ${error instanceof Error ? error.message : String(error)}`,
       );
 
-      return { error_message: error instanceof Error ? error.message : String(error) };
+      return { error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -230,7 +219,6 @@ export class SendblueService {
     schema: string,
     phone: string,
   ): Promise<{ id: string; name: string } | null> {
-    // Normalize phone — strip spaces, dashes
     const normalized = phone.replace(/[\s\-()]/g, '');
 
     const results = await this.dataSource.query(
