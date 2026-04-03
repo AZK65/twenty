@@ -41,5 +41,9 @@ register_background_jobs() {
 setup_and_migrate_db
 register_background_jobs
 
+# Start the queue worker in the background (processes emails, cron jobs, etc.)
+echo "Starting queue worker..."
+node dist/queue-worker/queue-worker.js &
+
 # Continue with the original Docker command
 exec "$@"
