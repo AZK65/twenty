@@ -112,7 +112,7 @@ export class CalcomWebhookService {
         || attendee.email;
       const phone = this.extractPhone(booking) ?? '';
       const calSource = this.extractResponseValue(booking.responses ?? {}, ['source', 'Source']);
-      const source = affiliateId ? 'PARTNER' : this.mapSource(calSource);
+      const source = affiliateId ? 'PARTNER' : (calSource ? this.mapSource(calSource) : 'CAL_COM');
       const sourceDetail = this.buildSourceDetail(affiliateId, referralId) ?? calSource;
       const needs = this.extractNotes(booking);
       const revenue = this.extractResponseValue(booking.responses ?? {}, ['revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue']);
