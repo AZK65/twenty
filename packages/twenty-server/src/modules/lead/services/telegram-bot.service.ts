@@ -108,16 +108,10 @@ export class TelegramBotService {
     try {
       const leadId = await this.createLead(name, email, phone, message, workspaceId);
 
-      const parts = [`✅ Lead created: *${name}*`];
-
-      if (email) parts.push(`📧 ${email}`);
-      if (phone) parts.push(`📱 ${phone}`);
-      parts.push(`\n🔗 [View in CRM](https://crm.apptics.pro/objects/lead/${leadId})`);
-
       await this.sendReply(
         botToken,
         message.chat.id,
-        parts.join('\n'),
+        `✅ Lead added: *${name}*`,
         message.message_id,
       );
 
@@ -190,7 +184,7 @@ export class TelegramBotService {
         $1, $2,
         $3, '[]'::jsonb,
         $4, '', '', '[]'::jsonb,
-        'OTHER', $5, $6,
+        'TELEGRAM', $5, $6,
         'NEW', 'MEDIUM', 'NOT_ENRICHED',
         0, NOW(), NOW()
       )`,
