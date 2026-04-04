@@ -27,6 +27,7 @@ import {
 } from 'src/modules/lead/services/close-crm-import.service';
 import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
 import { SendblueService } from 'src/modules/lead/services/sendblue.service';
+import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.service';
 
 @Controller('webhooks/leads')
 @UseGuards(PublicEndpointGuard, NoPermissionGuard, WebhookAuthGuard)
@@ -38,6 +39,7 @@ export class LeadWebhookController {
     private readonly calcomWebhookService: CalcomWebhookService,
     private readonly closeCrmImportService: CloseCrmImportService,
     private readonly sendblueService: SendblueService,
+    private readonly telegramBotService: TelegramBotService,
   ) {}
 
   @Post('affiliate')
@@ -274,5 +276,23 @@ export class LeadWebhookController {
 
       return { success: true };
     }
+  }
+
+  // Telegram bot webhook.
+  // Usage in group chat: /lead John Doe john@gmail.com +15551234567
+  @Post('telegram')
+  @HttpCode(200)
+  async handleTelegramWebhook(
+    @Body() body: Record<string, unknown>,
+  ): Promise<{ ok: boolean }> {
+    try {
+      await this.telegramBotService.handleUpdate(body as never);
+    } catch (error) {
+      this.logger.error(
+        `Telegram webhook failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return { ok: true };
   }
 }

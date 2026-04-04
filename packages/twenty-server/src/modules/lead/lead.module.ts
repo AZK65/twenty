@@ -16,6 +16,7 @@ import { LeadEnrichmentService } from 'src/modules/lead/services/lead-enrichment
 import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 import { SendblueService } from 'src/modules/lead/services/sendblue.service';
+import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.service';
 
 @Module({
   imports: [],
@@ -35,6 +36,7 @@ import { SendblueService } from 'src/modules/lead/services/sendblue.service';
     RenCustomerStatusListener,
     RenWebhookService,
     SendblueService,
+    TelegramBotService,
     WebhookAuthGuard,
   ],
   exports: [
