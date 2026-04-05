@@ -61,6 +61,8 @@ export class TelegramBotService {
     } else if (text.startsWith('/help') || text.startsWith('/start')) {
       await this.handleHelpCommand(message);
     } else {
+      // Auto-link group to lead if not linked yet
+      await this.tryAutoLink(message, schema);
       // Buffer all non-command messages for summarization
       await this.bufferMessage(message, schema);
     }
@@ -214,6 +216,89 @@ export class TelegramBotService {
       '/summary — Generate conversation summary\n\n' +
       'All messages are auto-summarized every 30 min and saved to the CRM.',
       message.message_id);
+  }
+
+  // --- AUTO-LINKING ---
+
+  private async tryAutoLink(message: TelegramMessage, schema: string): Promise<void> {
+    if (!message.chat.title || message.chat.type === 'private') return;
+
+    // Check if already linked
+    const existing = await this.dataSource.query(
+      `SELECT "leadId" FROM "${schema}"."telegramGroupLead" WHERE "chatId" = $1`,
+      [message.chat.id],
+    );
+
+    if (existing.length > 0) return;
+
+    // Try to match group name to a lead name
+    // Group names like "John Doe - Apptics", "Jake | Onboarding", "Antoine Le Brun"
+    // Strip common suffixes and try matching
+    const groupName = message.chat.title;
+    const cleanedNames = this.extractNamesFromGroupTitle(groupName);
+
+    for (const name of cleanedNames) {
+      if (name.length < 3) continue;
+
+      const results = await this.dataSource.query(
+        `SELECT id, name FROM "${schema}"."lead"
+         WHERE LOWER(name) = LOWER($1)
+         OR LOWER(name) LIKE LOWER($2)
+         LIMIT 1`,
+        [name, `${name}%`],
+      );
+
+      if (results[0]) {
+        await this.linkGroupToLead(message.chat.id, groupName, results[0].id, schema);
+
+        this.logger.log(
+          `Auto-linked group "${groupName}" to lead "${results[0].name}" (matched: "${name}")`,
+        );
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+        if (botToken) {
+          await this.sendReply(botToken, message.chat.id,
+            `🔗 Auto-linked this group to lead: *${results[0].name}*\nMessages will be summarized automatically.`,
+            message.message_id);
+        }
+
+        return;
+      }
+    }
+  }
+
+  private extractNamesFromGroupTitle(title: string): string[] {
+    // Remove common separators and extract potential names
+    // "John Doe - Apptics" → ["John Doe"]
+    // "Jake | Onboarding" → ["Jake"]
+    // "finity & Apptics Sales CRM, AKZ" → ["finity", "AKZ"]
+    const names: string[] = [];
+
+    // Split by common separators
+    const parts = title.split(/[-|&,/\\•·]+/).map((p) => p.trim());
+
+    for (const part of parts) {
+      // Skip known non-name parts
+      const lower = part.toLowerCase();
+
+      if (lower.includes('apptics') || lower.includes('crm') || lower.includes('onboarding')
+        || lower.includes('sales') || lower.includes('support') || lower.includes('team')
+        || lower.includes('bot') || lower.includes('group')) {
+        continue;
+      }
+
+      if (part.length >= 2) {
+        names.push(part);
+      }
+    }
+
+    // Also try the full title as-is (for groups named just "John Doe")
+    if (names.length === 0) {
+      names.push(title.trim());
+    }
+
+    return names;
   }
 
   // --- MESSAGE BUFFERING ---
