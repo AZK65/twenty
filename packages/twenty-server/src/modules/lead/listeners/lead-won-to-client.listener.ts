@@ -103,6 +103,18 @@ export class LeadWonToClientListener {
           ],
         );
 
+        // Link existing lead notes to the new person
+        await this.dataSource.query(
+          `UPDATE "${schema}"."noteTarget" SET "targetPersonId" = $1 WHERE "targetLeadId" = $2 AND "targetPersonId" IS NULL`,
+          [personId, event.recordId],
+        );
+
+        // Link existing lead tasks to the new person
+        await this.dataSource.query(
+          `UPDATE "${schema}"."taskTarget" SET "targetPersonId" = $1 WHERE "targetLeadId" = $2 AND "targetPersonId" IS NULL`,
+          [personId, event.recordId],
+        );
+
         this.logger.log(
           `Created client ${personId} (${firstName} ${lastName}) from won lead ${event.recordId}`,
         );
