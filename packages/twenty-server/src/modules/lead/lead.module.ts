@@ -14,6 +14,7 @@ import { CalcomWebhookService } from 'src/modules/lead/services/calcom-webhook.s
 import { CloseCrmImportService } from 'src/modules/lead/services/close-crm-import.service';
 import { LeadEnrichmentService } from 'src/modules/lead/services/lead-enrichment.service';
 import { LeadWebhookService } from 'src/modules/lead/services/lead-webhook.service';
+import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-emitter.service';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.service';
@@ -32,6 +33,7 @@ import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.servi
     LeadStageTransitionListener,
     LeadWebhookService,
     LeadWonToClientListener,
+    LeadEventEmitterService,
     RenCallBookedListener,
     RenCustomerStatusListener,
     RenWebhookService,

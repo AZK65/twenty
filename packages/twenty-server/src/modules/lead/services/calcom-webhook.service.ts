@@ -9,6 +9,7 @@ import {
   type CalcomBookingPayload,
   type CalcomWebhookEvent,
 } from 'src/modules/lead/dtos/calcom-webhook.dto';
+import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-emitter.service';
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 
@@ -26,6 +27,7 @@ export class CalcomWebhookService {
     private readonly dataSource: DataSource,
     private readonly renWebhookService: RenWebhookService,
     private readonly sendblueService: SendblueService,
+    private readonly leadEventEmitterService: LeadEventEmitterService,
   ) {}
 
   async handleBookingCreated(
@@ -147,6 +149,13 @@ export class CalcomWebhookService {
 
       this.logger.log(
         `Created new lead ${leadId} from Cal.com booking ${booking.uid}`,
+      );
+
+      // Emit event so real-time subscriptions pick it up
+      await this.leadEventEmitterService.emitLeadCreated(
+        leadId,
+        { name, emailsPrimaryEmail: attendee.email, stage: 'MEETING_SCHEDULED' },
+        workspaceId,
       );
     }
 
