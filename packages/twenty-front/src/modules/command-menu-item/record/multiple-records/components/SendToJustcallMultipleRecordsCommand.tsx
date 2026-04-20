@@ -164,8 +164,8 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const [revenueValues, setRevenueValues] = useState<string[]>([]);
   const [selectedRevenues, setSelectedRevenues] = useState<Set<string>>(new Set());
   const [usOnly, setUsOnly] = useState(true);
-  const [maxAgeDays, setMaxAgeDays] = useState<string>('');
-  const [cooldownDays, setCooldownDays] = useState<string>('30');
+  const [minAgeDays, setMinAgeDays] = useState<string>('30');
+  const [maxAgeDays, setMaxAgeDays] = useState<string>('90');
 
   const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const [sample, setSample] = useState<
@@ -264,8 +264,8 @@ export const SendToJustcallMultipleRecordsCommand = () => {
               filters: {
                 usOnly,
                 companyRevenues: Array.from(selectedRevenues),
+                minAgeDays: minAgeDays ? Number(minAgeDays) : undefined,
                 maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
-                cooldownDays: cooldownDays ? Number(cooldownDays) : undefined,
               },
             }),
           },
@@ -302,7 +302,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     return () => {
       cancelled = true;
     };
-  }, [usOnly, selectedRevenues, maxAgeDays, cooldownDays, authHeader]);
+  }, [usOnly, selectedRevenues, minAgeDays, maxAgeDays, authHeader]);
 
   const handleSend = async () => {
     if (!matchingCount || matchingCount === 0) {
@@ -342,8 +342,8 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     body.filters = {
       usOnly,
       companyRevenues: Array.from(selectedRevenues),
+      minAgeDays: minAgeDays ? Number(minAgeDays) : undefined,
       maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
-      cooldownDays: cooldownDays ? Number(cooldownDays) : undefined,
     };
 
     setIsSending(true);
@@ -482,24 +482,24 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         US phone numbers only (normalizes to +1)
       </StyledCheckboxRow>
 
-      <StyledLabel>Only leads added to the CRM in the last N days (leave empty for no limit)</StyledLabel>
+      <StyledLabel>Skip leads added in the last N days (too new — empty to disable)</StyledLabel>
       <StyledInput
         type="number"
         inputMode="numeric"
-        placeholder="e.g. 30"
+        placeholder="30"
+        min={0}
+        value={minAgeDays}
+        onChange={(e) => setMinAgeDays(e.target.value)}
+      />
+
+      <StyledLabel>Only leads added within the last N days (not too old — empty to disable)</StyledLabel>
+      <StyledInput
+        type="number"
+        inputMode="numeric"
+        placeholder="90"
         min={1}
         value={maxAgeDays}
         onChange={(e) => setMaxAgeDays(e.target.value)}
-      />
-
-      <StyledLabel>Skip leads contacted in the last N days (cooldown — 0 or empty to disable)</StyledLabel>
-      <StyledInput
-        type="number"
-        inputMode="numeric"
-        placeholder="e.g. 30"
-        min={0}
-        value={cooldownDays}
-        onChange={(e) => setCooldownDays(e.target.value)}
       />
 
       {revenueValues.length > 0 && (

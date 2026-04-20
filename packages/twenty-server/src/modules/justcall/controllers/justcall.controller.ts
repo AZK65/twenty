@@ -34,8 +34,8 @@ type SendLeadsBody = {
   filters?: {
     companyRevenues?: string[];
     usOnly?: boolean;
+    minAgeDays?: number;
     maxAgeDays?: number;
-    cooldownDays?: number;
   };
 };
 
@@ -43,8 +43,8 @@ type PreviewBody = {
   filters?: {
     companyRevenues?: string[];
     usOnly?: boolean;
+    minAgeDays?: number;
     maxAgeDays?: number;
-    cooldownDays?: number;
   };
 };
 

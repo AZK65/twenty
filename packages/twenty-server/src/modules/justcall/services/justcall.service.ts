@@ -42,15 +42,14 @@ type LeadRow = {
 };
 
 export type LeadFilters = {
-  // If set and non-empty, only push leads whose companyRevenue is in this list.
+  // Only push leads whose companyRevenue is in this list (empty = all).
   companyRevenues?: string[];
-  // If true, drop leads whose phone does not normalize to a US number (+1).
+  // Drop leads whose phone does not normalize to a US number (+1).
   usOnly?: boolean;
-  // If set, only include leads created within the last N days.
+  // Skip leads created within the last N days ("too new, don't call yet").
+  minAgeDays?: number;
+  // Only include leads created within the last N days ("not too old").
   maxAgeDays?: number;
-  // If set, exclude leads that have been pushed to JustCall or had a call
-  // completed within the last N days (contact cooldown).
-  cooldownDays?: number;
 };
 
 // Safety cap on match-all-filters mode to avoid accidentally pushing
@@ -384,21 +383,16 @@ export class JustcallService {
       );
     }
 
-    if (filters.usOnly) {
+    if (filters.minAgeDays && filters.minAgeDays > 0) {
+      params.push(filters.minAgeDays);
       clauses.push(
-        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1\\\\d{10}$'`,
+        `"createdAt" <= NOW() - ($${params.length}::int * INTERVAL '1 day')`,
       );
     }
 
-    if (filters.cooldownDays && filters.cooldownDays > 0) {
-      params.push(filters.cooldownDays);
+    if (filters.usOnly) {
       clauses.push(
-        `NOT EXISTS (
-          SELECT 1 FROM "${schema}"."timelineActivity" ta
-          WHERE ta."targetLeadId" = lead.id
-            AND ta.name IN ('lead.pushed_to_justcall', 'lead.phone_call_completed')
-            AND ta."happensAt" >= NOW() - ($${params.length}::int * INTERVAL '1 day')
-        )`,
+        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1\\\\d{10}$'`,
       );
     }
 
