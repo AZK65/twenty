@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { LeadWebhookController } from 'src/modules/lead/controllers/lead-webhook.controller';
 import { WebhookAuthGuard } from 'src/modules/lead/guards/webhook-auth.guard';
 import { LeadAssignmentNotificationJob } from 'src/modules/lead/jobs/lead-assignment-notification.job';
@@ -20,7 +21,7 @@ import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.service';
 
 @Module({
-  imports: [],
+  imports: [WorkspaceCacheModule],
   controllers: [LeadWebhookController],
   providers: [
     AffiliateOutboundWebhookService,
