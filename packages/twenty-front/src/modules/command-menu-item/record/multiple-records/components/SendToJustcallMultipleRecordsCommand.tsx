@@ -1,5 +1,5 @@
 import { styled } from '@linaria/react';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 
 import { tokenPairState } from '@/auth/states/tokenPairState';
 import { CommandModal } from '@/command-menu-item/display/components/CommandModal';
@@ -140,9 +140,13 @@ export const SendToJustcallMultipleRecordsCommand = () => {
 
   const tokenPair = useAtomStateValue(tokenPairState);
   const token = tokenPair?.accessOrWorkspaceAgnosticToken?.token;
-  const authHeader: Record<string, string> = token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
+  const authHeader = useMemo<Record<string, string>>(() => {
+    const h: Record<string, string> = {};
+
+    if (token) h.Authorization = `Bearer ${token}`;
+
+    return h;
+  }, [token]);
 
   const [mode, setMode] = useState<Mode>('existing');
 
@@ -161,6 +165,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const [selectedRevenues, setSelectedRevenues] = useState<Set<string>>(new Set());
   const [usOnly, setUsOnly] = useState(true);
   const [maxAgeDays, setMaxAgeDays] = useState<string>('');
+  const [cooldownDays, setCooldownDays] = useState<string>('30');
 
   const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const [sample, setSample] = useState<
@@ -260,6 +265,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
                 usOnly,
                 companyRevenues: Array.from(selectedRevenues),
                 maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
+                cooldownDays: cooldownDays ? Number(cooldownDays) : undefined,
               },
             }),
           },
@@ -296,7 +302,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     return () => {
       cancelled = true;
     };
-  }, [usOnly, selectedRevenues, maxAgeDays, authHeader]);
+  }, [usOnly, selectedRevenues, maxAgeDays, cooldownDays, authHeader]);
 
   const handleSend = async () => {
     if (!matchingCount || matchingCount === 0) {
@@ -337,6 +343,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       usOnly,
       companyRevenues: Array.from(selectedRevenues),
       maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
+      cooldownDays: cooldownDays ? Number(cooldownDays) : undefined,
     };
 
     setIsSending(true);
@@ -483,6 +490,16 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         min={1}
         value={maxAgeDays}
         onChange={(e) => setMaxAgeDays(e.target.value)}
+      />
+
+      <StyledLabel>Skip leads contacted in the last N days (cooldown — 0 or empty to disable)</StyledLabel>
+      <StyledInput
+        type="number"
+        inputMode="numeric"
+        placeholder="e.g. 30"
+        min={0}
+        value={cooldownDays}
+        onChange={(e) => setCooldownDays(e.target.value)}
       />
 
       {revenueValues.length > 0 && (

@@ -35,6 +35,7 @@ type SendLeadsBody = {
     companyRevenues?: string[];
     usOnly?: boolean;
     maxAgeDays?: number;
+    cooldownDays?: number;
   };
 };
 
@@ -43,6 +44,7 @@ type PreviewBody = {
     companyRevenues?: string[];
     usOnly?: boolean;
     maxAgeDays?: number;
+    cooldownDays?: number;
   };
 };
 

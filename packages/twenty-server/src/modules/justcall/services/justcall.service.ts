@@ -48,6 +48,9 @@ export type LeadFilters = {
   usOnly?: boolean;
   // If set, only include leads created within the last N days.
   maxAgeDays?: number;
+  // If set, exclude leads that have been pushed to JustCall or had a call
+  // completed within the last N days (contact cooldown).
+  cooldownDays?: number;
 };
 
 // Safety cap on match-all-filters mode to avoid accidentally pushing
@@ -352,7 +355,10 @@ export class JustcallService {
     );
   }
 
-  private buildMatchFilterSql(filters: LeadFilters): {
+  private buildMatchFilterSql(
+    schema: string,
+    filters: LeadFilters,
+  ): {
     whereClause: string;
     params: unknown[];
   } {
@@ -384,6 +390,18 @@ export class JustcallService {
       );
     }
 
+    if (filters.cooldownDays && filters.cooldownDays > 0) {
+      params.push(filters.cooldownDays);
+      clauses.push(
+        `NOT EXISTS (
+          SELECT 1 FROM "${schema}"."timelineActivity" ta
+          WHERE ta."targetLeadId" = lead.id
+            AND ta.name IN ('lead.pushed_to_justcall', 'lead.phone_call_completed')
+            AND ta."happensAt" >= NOW() - ($${params.length}::int * INTERVAL '1 day')
+        )`,
+      );
+    }
+
     return { whereClause: clauses.join(' AND '), params };
   }
 
@@ -392,7 +410,7 @@ export class JustcallService {
     filters: LeadFilters,
   ): Promise<string[]> {
     const schema = getWorkspaceSchemaName(workspaceId);
-    const { whereClause, params } = this.buildMatchFilterSql(filters);
+    const { whereClause, params } = this.buildMatchFilterSql(schema, filters);
 
     params.push(MATCH_ALL_MAX);
 
@@ -421,7 +439,7 @@ export class JustcallService {
     }>;
   }> {
     const schema = getWorkspaceSchemaName(workspaceId);
-    const { whereClause, params } = this.buildMatchFilterSql(filters);
+    const { whereClause, params } = this.buildMatchFilterSql(schema, filters);
 
     const countRow = await this.dataSource.query(
       `SELECT COUNT(*)::int AS c FROM "${schema}"."lead" WHERE ${whereClause}`,
