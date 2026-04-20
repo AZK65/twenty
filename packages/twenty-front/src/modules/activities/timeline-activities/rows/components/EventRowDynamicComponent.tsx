@@ -4,6 +4,7 @@ import { EventRowActivity } from '@/activities/timeline-activities/rows/activity
 import { EventRowCalendarEvent } from '@/activities/timeline-activities/rows/calendar/components/EventRowCalendarEvent';
 import { EventRowMainObject } from '@/activities/timeline-activities/rows/main-object/components/EventRowMainObject';
 import { EventRowMessage } from '@/activities/timeline-activities/rows/message/components/EventRowMessage';
+import { EventRowPhoneCall } from '@/activities/timeline-activities/rows/phone-call/components/EventRowPhoneCall';
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
 import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
@@ -42,6 +43,19 @@ export const EventRowDynamicComponent = ({
   authorFullName,
   createdAt,
 }: EventRowDynamicComponentProps) => {
+  if (event.name === 'lead.phone_call_completed') {
+    return (
+      <EventRowPhoneCall
+        labelIdentifierValue={labelIdentifierValue}
+        event={event}
+        mainObjectMetadataItem={mainObjectMetadataItem}
+        linkedObjectMetadataItem={linkedObjectMetadataItem}
+        authorFullName={authorFullName}
+        createdAt={createdAt}
+      />
+    );
+  }
+
   switch (linkedObjectMetadataItem?.nameSingular) {
     case 'calendarEvent':
       return (

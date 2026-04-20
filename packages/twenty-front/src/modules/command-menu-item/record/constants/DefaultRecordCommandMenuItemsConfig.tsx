@@ -4,6 +4,7 @@ import { DestroyMultipleRecordsCommand } from '@/command-menu-item/record/multip
 import { ExportMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/ExportMultipleRecordsCommand';
 import { MergeMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/MergeMultipleRecordsCommand';
 import { RestoreMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/RestoreMultipleRecordsCommand';
+import { SendToJustcallMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/SendToJustcallMultipleRecordsCommand';
 import { UpdateMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/UpdateMultipleRecordsCommand';
 import { MultipleRecordsCommandKeys } from '@/command-menu-item/record/multiple-records/types/MultipleRecordsCommandKeys';
 import { CreateNewIndexRecordNoSelectionRecordCommand } from '@/command-menu-item/record/no-selection/components/CreateNewIndexRecordNoSelectionRecordCommand';
@@ -55,6 +56,7 @@ import {
   IconLayout,
   IconLayoutDashboard,
   IconPencil,
+  IconPhoneCall,
   IconPlus,
   IconRefresh,
   IconRotate2,
@@ -437,6 +439,23 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
       numberOfSelectedRecords <= MUTATION_MAX_MERGE_RECORDS,
     availableOn: [CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION],
     component: <MergeMultipleRecordsCommand />,
+  },
+  [MultipleRecordsCommandKeys.SEND_TO_JUSTCALL]: {
+    type: CommandMenuItemType.Standard,
+    scope: CommandMenuItemScope.RecordSelection,
+    key: MultipleRecordsCommandKeys.SEND_TO_JUSTCALL,
+    label: msg`Send to JustCall`,
+    shortLabel: msg`JustCall`,
+    position: 15.5,
+    Icon: IconPhoneCall,
+    accent: 'default',
+    isPinned: true,
+    shouldBeRegistered: ({ objectMetadataItem, numberOfSelectedRecords }) =>
+      objectMetadataItem?.nameSingular === CoreObjectNameSingular.Lead &&
+      isDefined(numberOfSelectedRecords) &&
+      numberOfSelectedRecords > 0,
+    availableOn: [CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION],
+    component: <SendToJustcallMultipleRecordsCommand />,
   },
   [MultipleRecordsCommandKeys.EXPORT]: {
     type: CommandMenuItemType.Standard,

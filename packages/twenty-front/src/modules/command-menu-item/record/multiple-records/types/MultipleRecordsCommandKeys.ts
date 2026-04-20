@@ -5,4 +5,5 @@ export enum MultipleRecordsCommandKeys {
   MERGE = 'merge-multiple-records',
   DESTROY = 'destroy-multiple-records',
   RESTORE = 'restore-multiple-records',
+  SEND_TO_JUSTCALL = 'send-to-justcall-multiple-records',
 }
