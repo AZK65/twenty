@@ -1,5 +1,4 @@
 import { styled } from '@linaria/react';
-import { t } from '@lingui/core/macro';
 import { useContext, useEffect, useState } from 'react';
 
 import { CommandModal } from '@/command-menu-item/display/components/CommandModal';
@@ -133,7 +132,6 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         if (campaignList.length > 0) {
           setSelectedCampaignId(campaignList[0].id);
         } else {
-          // No campaigns yet → default to new-campaign mode
           setMode('new');
         }
 
@@ -143,7 +141,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       } catch (error) {
         if (!cancelled) {
           enqueueErrorSnackBar({
-            message: t`Failed to load JustCall campaigns/phones`,
+            message: 'Failed to load JustCall campaigns/phones',
           });
         }
       } finally {
@@ -172,7 +170,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
 
   const handleSend = async () => {
     if (selectedLeadIds.length === 0) {
-      enqueueErrorSnackBar({ message: t`No leads selected.` });
+      enqueueErrorSnackBar({ message: 'No leads selected.' });
 
       return;
     }
@@ -181,19 +179,19 @@ export const SendToJustcallMultipleRecordsCommand = () => {
 
     if (mode === 'existing') {
       if (selectedCampaignId === null) {
-        enqueueErrorSnackBar({ message: t`Pick a campaign first.` });
+        enqueueErrorSnackBar({ message: 'Pick a campaign first.' });
 
         return;
       }
       body.campaignId = selectedCampaignId;
     } else {
       if (!newCampaignName.trim()) {
-        enqueueErrorSnackBar({ message: t`Enter a campaign name.` });
+        enqueueErrorSnackBar({ message: 'Enter a campaign name.' });
 
         return;
       }
       if (selectedPhoneId === null) {
-        enqueueErrorSnackBar({ message: t`Pick a phone number.` });
+        enqueueErrorSnackBar({ message: 'Pick a phone number.' });
 
         return;
       }
@@ -227,10 +225,10 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       };
 
       enqueueSuccessSnackBar({
-        message: t`JustCall: ${json.sent ?? 0} sent, ${json.skipped ?? 0} already-synced skipped, ${json.failed ?? 0} failed.`,
+        message: `JustCall: ${json.sent ?? 0} sent, ${json.skipped ?? 0} already-synced skipped, ${json.failed ?? 0} failed.`,
       });
     } catch (error) {
-      enqueueErrorSnackBar({ message: t`Failed to push leads to JustCall.` });
+      enqueueErrorSnackBar({ message: 'Failed to push leads to JustCall.' });
     } finally {
       setIsSending(false);
     }
@@ -239,7 +237,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const subtitle = (
     <StyledForm>
       <div>
-        {t`Pushing ${selectedLeadIds.length} lead(s). Leads previously pushed will be skipped automatically.`}
+        {`Pushing ${selectedLeadIds.length} lead(s). Leads previously pushed will be skipped automatically.`}
       </div>
 
       <StyledTabs>
@@ -248,29 +246,29 @@ export const SendToJustcallMultipleRecordsCommand = () => {
           active={mode === 'existing'}
           onClick={() => setMode('existing')}
         >
-          {t`Existing campaign`}
+          Existing campaign
         </StyledTab>
         <StyledTab
           type="button"
           active={mode === 'new'}
           onClick={() => setMode('new')}
         >
-          {t`New campaign`}
+          New campaign
         </StyledTab>
       </StyledTabs>
 
       {mode === 'existing' && (
         <>
-          <StyledLabel htmlFor="justcall-campaign-select">{t`Campaign`}</StyledLabel>
+          <StyledLabel htmlFor="justcall-campaign-select">Campaign</StyledLabel>
           <StyledSelect
             id="justcall-campaign-select"
             value={selectedCampaignId ?? ''}
             onChange={(e) => setSelectedCampaignId(Number(e.target.value))}
             disabled={isLoadingCampaigns || campaigns.length === 0}
           >
-            {isLoadingCampaigns && <option>{t`Loading campaigns…`}</option>}
+            {isLoadingCampaigns && <option>Loading campaigns…</option>}
             {!isLoadingCampaigns && campaigns.length === 0 && (
-              <option>{t`No campaigns found — switch to New campaign`}</option>
+              <option>No campaigns found — switch to New campaign</option>
             )}
             {campaigns.map((c) => (
               <option key={c.id} value={c.id}>
@@ -283,7 +281,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
 
       {mode === 'new' && (
         <>
-          <StyledLabel htmlFor="justcall-new-name">{t`Campaign name`}</StyledLabel>
+          <StyledLabel htmlFor="justcall-new-name">Campaign name</StyledLabel>
           <StyledInput
             id="justcall-new-name"
             type="text"
@@ -292,7 +290,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
             onChange={(e) => setNewCampaignName(e.target.value)}
           />
           <StyledLabel htmlFor="justcall-phone-select">
-            {t`Outbound phone number`}
+            Outbound phone number
           </StyledLabel>
           <StyledSelect
             id="justcall-phone-select"
@@ -305,9 +303,9 @@ export const SendToJustcallMultipleRecordsCommand = () => {
             }}
             disabled={isLoadingPhones || phones.length === 0}
           >
-            {isLoadingPhones && <option>{t`Loading phones…`}</option>}
+            {isLoadingPhones && <option>Loading phones…</option>}
             {!isLoadingPhones && phones.length === 0 && (
-              <option>{t`No JustCall numbers found`}</option>
+              <option>No JustCall numbers found</option>
             )}
             {phones.map((p) => (
               <option key={String(p.id)} value={p.id}>
@@ -319,17 +317,18 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       )}
 
       <StyledNote>
-        {t`Tip: filter the leads list (e.g. Country = US) and select the rows you want to send.`}
+        Tip: filter the leads list (e.g. Country = US) and select the rows you
+        want to send.
       </StyledNote>
     </StyledForm>
   );
 
   return (
     <CommandModal
-      title={t`Send to JustCall`}
+      title="Send to JustCall"
       subtitle={subtitle}
       onConfirmClick={handleSend}
-      confirmButtonText={mode === 'new' ? t`Create & send` : t`Send to dialer`}
+      confirmButtonText={mode === 'new' ? 'Create & send' : 'Send to dialer'}
       confirmButtonAccent="blue"
       isLoading={isSending}
     />
