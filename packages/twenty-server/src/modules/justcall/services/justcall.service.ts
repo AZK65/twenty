@@ -67,9 +67,8 @@ export class JustcallService {
       return null;
     }
 
-    const token = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
-
-    return `Basic ${token}`;
+    // JustCall v2.1 auth format: raw "{key}:{secret}", no Basic prefix, no base64.
+    return `${apiKey}:${apiSecret}`;
   }
 
   async listCampaigns(): Promise<JustcallCampaign[]> {
@@ -126,11 +125,12 @@ export class JustcallService {
       if (!response.ok) {
         const text = await response.text();
 
-        this.logger.warn(
+        this.logger.error(
           `JustCall listPhoneNumbers failed: ${response.status} ${text}`,
         );
-
-        return [];
+        throw new Error(
+          `JustCall API ${response.status}: ${text.slice(0, 200)}`,
+        );
       }
 
       const json = (await response.json()) as {
