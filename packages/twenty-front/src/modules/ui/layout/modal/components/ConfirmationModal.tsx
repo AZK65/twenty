@@ -15,6 +15,7 @@ import {
   SectionAlignment,
   SectionFontColor,
   type ModalOverlay,
+  type ModalSize,
 } from 'twenty-ui/layout';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
@@ -31,6 +32,7 @@ export type ConfirmationModalProps = {
   confirmButtonAccent?: ButtonAccent;
   AdditionalButtons?: React.ReactNode;
   overlay?: ModalOverlay;
+  size?: ModalSize;
 };
 
 const StyledCenteredButtonContainer = styled.div`
@@ -94,6 +96,7 @@ export const ConfirmationModal = ({
   confirmButtonAccent = 'danger',
   AdditionalButtons,
   overlay = 'dark',
+  size,
 }: ConfirmationModalProps) => {
   const { i18n, t } = useLingui();
   const translatedConfirmButtonText =
@@ -145,7 +148,8 @@ export const ConfirmationModal = ({
       dataGloballyPreventClickOutside
       renderInDocumentBody
       smallBorderRadius
-      narrowWidth
+      size={size}
+      narrowWidth={size === undefined}
       autoHeight
     >
       <StyledCenteredTitle>

@@ -30,6 +30,7 @@ const StyledForm = styled.div`
   gap: ${themeCssVariables.spacing[2]};
   margin-top: ${themeCssVariables.spacing[2]};
   width: 100%;
+  text-align: left;
 `;
 
 const StyledTabs = styled.div`
@@ -571,6 +572,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       confirmButtonText={mode === 'new' ? 'Create & send' : 'Send to dialer'}
       confirmButtonAccent="blue"
       isLoading={isSending}
+      size="large"
     />
   );
 };

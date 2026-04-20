@@ -10,6 +10,7 @@ import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { isModalOpenedComponentState } from '@/ui/layout/modal/states/isModalOpenedComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { type ButtonAccent } from 'twenty-ui/input';
+import { type ModalSize } from 'twenty-ui/layout';
 
 export type CommandModalProps = {
   title: string;
@@ -18,6 +19,7 @@ export type CommandModalProps = {
   confirmButtonText?: string;
   confirmButtonAccent?: ButtonAccent;
   isLoading?: boolean;
+  size?: ModalSize;
   closeSidePanelOnShowPageOptionsExecution?: boolean;
   closeSidePanelOnCommandMenuListExecution?: boolean;
 };
@@ -29,6 +31,7 @@ export const CommandModal = ({
   confirmButtonText = t`Confirm`,
   confirmButtonAccent = 'danger',
   isLoading = false,
+  size,
   closeSidePanelOnShowPageOptionsExecution,
   closeSidePanelOnCommandMenuListExecution,
 }: CommandModalProps) => {
@@ -72,6 +75,7 @@ export const CommandModal = ({
           confirmButtonText={confirmButtonText}
           confirmButtonAccent={confirmButtonAccent}
           loading={isLoading}
+          size={size}
         />
       )}
     </>
