@@ -78,6 +78,31 @@ const StyledNote = styled.div`
   font-size: ${themeCssVariables.font.size.xs};
 `;
 
+const StyledDivider = styled.div`
+  border-top: 1px solid ${themeCssVariables.border.color.light};
+  margin: ${themeCssVariables.spacing[2]} 0 0 0;
+`;
+
+const StyledCheckboxRow = styled.label`
+  align-items: center;
+  color: ${themeCssVariables.font.color.primary};
+  cursor: pointer;
+  display: flex;
+  font-size: ${themeCssVariables.font.size.sm};
+  gap: ${themeCssVariables.spacing[2]};
+`;
+
+const StyledRevenueGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${themeCssVariables.spacing[1]};
+  max-height: 160px;
+  overflow-y: auto;
+  padding: ${themeCssVariables.spacing[2]};
+  border: 1px solid ${themeCssVariables.border.color.light};
+  border-radius: ${themeCssVariables.border.radius.sm};
+`;
+
 export const SendToJustcallMultipleRecordsCommand = () => {
   const actionConfig = useContext(CommandConfigContext);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
@@ -99,6 +124,10 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const [newCampaignName, setNewCampaignName] = useState('');
   const [isSending, setIsSending] = useState(false);
 
+  const [revenueValues, setRevenueValues] = useState<string[]>([]);
+  const [selectedRevenues, setSelectedRevenues] = useState<Set<string>>(new Set());
+  const [usOnly, setUsOnly] = useState(true);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -107,27 +136,34 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       setIsLoadingPhones(true);
 
       try {
-        const [campaignsRes, phonesRes] = await Promise.all([
+        const [campaignsRes, phonesRes, revenuesRes] = await Promise.all([
           fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/campaigns`, {
             credentials: 'include',
           }),
           fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/phones`, {
             credentials: 'include',
           }),
+          fetch(
+            `${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/revenue-values`,
+            { credentials: 'include' },
+          ),
         ]);
 
         const campaignsJson = (await campaignsRes.json()) as {
           data?: JustcallCampaign[];
         };
         const phonesJson = (await phonesRes.json()) as { data?: JustcallPhone[] };
+        const revenuesJson = (await revenuesRes.json()) as { data?: string[] };
 
         if (cancelled) return;
 
         const campaignList = campaignsJson.data ?? [];
         const phoneList = phonesJson.data ?? [];
+        const revenueList = revenuesJson.data ?? [];
 
         setCampaigns(campaignList);
         setPhones(phoneList);
+        setRevenueValues(revenueList);
 
         if (campaignList.length > 0) {
           setSelectedCampaignId(campaignList[0].id);
@@ -201,6 +237,11 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       };
     }
 
+    body.filters = {
+      usOnly,
+      companyRevenues: Array.from(selectedRevenues),
+    };
+
     setIsSending(true);
 
     try {
@@ -221,11 +262,12 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       const json = (await response.json()) as {
         sent?: number;
         skipped?: number;
+        filtered?: number;
         failed?: number;
       };
 
       enqueueSuccessSnackBar({
-        message: `JustCall: ${json.sent ?? 0} sent, ${json.skipped ?? 0} already-synced skipped, ${json.failed ?? 0} failed.`,
+        message: `JustCall: ${json.sent ?? 0} sent, ${json.skipped ?? 0} already synced, ${json.filtered ?? 0} filtered out, ${json.failed ?? 0} failed.`,
       });
     } catch (error) {
       enqueueErrorSnackBar({ message: 'Failed to push leads to JustCall.' });
@@ -316,9 +358,46 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         </>
       )}
 
+      <StyledDivider />
+
+      <StyledLabel>Filters</StyledLabel>
+
+      <StyledCheckboxRow>
+        <input
+          type="checkbox"
+          checked={usOnly}
+          onChange={(e) => setUsOnly(e.target.checked)}
+        />
+        US phone numbers only (normalizes to +1)
+      </StyledCheckboxRow>
+
+      {revenueValues.length > 0 && (
+        <>
+          <StyledLabel>Company revenue (leave empty to include all)</StyledLabel>
+          <StyledRevenueGrid>
+            {revenueValues.map((v) => (
+              <StyledCheckboxRow key={v}>
+                <input
+                  type="checkbox"
+                  checked={selectedRevenues.has(v)}
+                  onChange={(e) => {
+                    const next = new Set(selectedRevenues);
+
+                    if (e.target.checked) next.add(v);
+                    else next.delete(v);
+                    setSelectedRevenues(next);
+                  }}
+                />
+                {v}
+              </StyledCheckboxRow>
+            ))}
+          </StyledRevenueGrid>
+        </>
+      )}
+
       <StyledNote>
-        Tip: filter the leads list (e.g. Country = US) and select the rows you
-        want to send.
+        Tip: filters apply only to the leads you've selected. Leads previously
+        pushed to JustCall are also skipped automatically.
       </StyledNote>
     </StyledForm>
   );

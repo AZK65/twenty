@@ -26,6 +26,7 @@ type JustcallCampaign = {
 type PushResult = {
   sent: number;
   skipped: number;
+  filtered: number;
   failed: number;
   failures: Array<{ leadId: string; reason: string }>;
 };
@@ -37,6 +38,14 @@ type LeadRow = {
   phonesPrimaryPhoneNumber: string | null;
   phonesPrimaryPhoneCountryCode: string | null;
   phonesPrimaryPhoneCallingCode: string | null;
+  companyRevenue: string | null;
+};
+
+export type LeadFilters = {
+  // If set and non-empty, only push leads whose companyRevenue is in this list.
+  companyRevenues?: string[];
+  // If true, drop leads whose phone does not normalize to a US number (+1).
+  usOnly?: boolean;
 };
 
 @Injectable()
@@ -199,9 +208,16 @@ export class JustcallService {
     leadIds: string[],
     campaignId: number,
     workspaceId: string,
+    filters: LeadFilters = {},
   ): Promise<PushResult> {
     const auth = this.getAuthHeader();
-    const result: PushResult = { sent: 0, skipped: 0, failed: 0, failures: [] };
+    const result: PushResult = {
+      sent: 0,
+      skipped: 0,
+      filtered: 0,
+      failed: 0,
+      failures: [],
+    };
 
     if (!auth) {
       result.failed = leadIds.length;
@@ -238,9 +254,19 @@ export class JustcallService {
     // Dedupe: skip leads that already have a pushed_to_justcall timeline entry
     const alreadySent = await this.findAlreadyPushedLeadIds(schema, leads.map((l) => l.id));
 
+    const revenueFilter =
+      filters.companyRevenues && filters.companyRevenues.length > 0
+        ? new Set(filters.companyRevenues)
+        : null;
+
     for (const lead of leads) {
       if (alreadySent.has(lead.id)) {
         result.skipped++;
+        continue;
+      }
+
+      if (revenueFilter && !revenueFilter.has(lead.companyRevenue ?? '')) {
+        result.filtered++;
         continue;
       }
 
@@ -249,6 +275,11 @@ export class JustcallService {
       if (!phone) {
         result.failed++;
         result.failures.push({ leadId: lead.id, reason: 'Missing phone number' });
+        continue;
+      }
+
+      if (filters.usOnly && !this.isUsPhone(phone)) {
+        result.filtered++;
         continue;
       }
 
@@ -295,11 +326,35 @@ export class JustcallService {
               "emailsPrimaryEmail",
               "phonesPrimaryPhoneNumber",
               "phonesPrimaryPhoneCountryCode",
-              "phonesPrimaryPhoneCallingCode"
+              "phonesPrimaryPhoneCallingCode",
+              "companyRevenue"
        FROM "${schema}"."lead"
        WHERE id = ANY($1::uuid[])`,
       [leadIds],
     );
+  }
+
+  async listRevenueValues(workspaceId: string): Promise<string[]> {
+    const schema = getWorkspaceSchemaName(workspaceId);
+
+    const rows = await this.dataSource.query(
+      `SELECT DISTINCT "companyRevenue" as value
+       FROM "${schema}"."lead"
+       WHERE "companyRevenue" IS NOT NULL AND "companyRevenue" != ''
+       ORDER BY "companyRevenue"`,
+    );
+
+    return rows.map((r: { value: string }) => r.value);
+  }
+
+  // A phone is "US" if the E.164 form starts with +1 and the national
+  // number is 10 digits. Rough but good enough for filtering CRM leads.
+  private isUsPhone(e164: string): boolean {
+    if (!e164.startsWith('+1')) return false;
+
+    const digits = e164.slice(2).replace(/\D/g, '');
+
+    return digits.length === 10;
   }
 
   private async findAlreadyPushedLeadIds(

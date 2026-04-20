@@ -28,6 +28,10 @@ type SendLeadsBody = {
     name: string;
     phoneNumberId: number | string;
   };
+  filters?: {
+    companyRevenues?: string[];
+    usOnly?: boolean;
+  };
 };
 
 @Controller()
@@ -52,6 +56,19 @@ export class JustcallController {
   @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
   async listPhones() {
     return { data: await this.justcallService.listPhoneNumbers() };
+  }
+
+  @Get('rest/integrations/justcall/revenue-values')
+  @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
+  async listRevenueValues() {
+    const authContext = getWorkspaceAuthContext();
+    const workspaceId = authContext.workspace?.id;
+
+    if (!workspaceId) {
+      throw new BadRequestException('Workspace context not found.');
+    }
+
+    return { data: await this.justcallService.listRevenueValues(workspaceId) };
   }
 
   @Post('rest/integrations/justcall/send-leads')
@@ -99,6 +116,7 @@ export class JustcallController {
       body.leadIds,
       campaignId,
       workspaceId,
+      body.filters ?? {},
     );
 
     return { success: true, campaignId, ...result };
