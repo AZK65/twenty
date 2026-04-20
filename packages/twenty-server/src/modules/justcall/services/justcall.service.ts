@@ -392,9 +392,10 @@ export class JustcallService {
 
     if (filters.usOnly) {
       // NANP: +1 + 3-digit area code (first digit 2-9) + 7-digit subscriber.
-      // So the digits-only form is: 1 + [2-9] + 9 more digits = 11 digits total.
+      // Normalize via [^0-9] instead of \D to avoid JS/SQL backslash escaping
+      // issues, then require the digits-only form to be 1[2-9] + 9 digits.
       clauses.push(
-        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1[2-9]\\\\d{9}$'`,
+        `regexp_replace("phonesPrimaryPhoneNumber", '[^0-9]', '', 'g') ~ '^1[2-9][0-9]{9}$'`,
       );
     }
 
