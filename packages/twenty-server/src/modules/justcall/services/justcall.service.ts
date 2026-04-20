@@ -46,7 +46,13 @@ export type LeadFilters = {
   companyRevenues?: string[];
   // If true, drop leads whose phone does not normalize to a US number (+1).
   usOnly?: boolean;
+  // If set, only include leads created within the last N days.
+  maxAgeDays?: number;
 };
+
+// Safety cap on match-all-filters mode to avoid accidentally pushing
+// thousands of leads in one click.
+const MATCH_ALL_MAX = 1000;
 
 @Injectable()
 export class JustcallService {
@@ -344,6 +350,99 @@ export class JustcallService {
        WHERE id = ANY($1::uuid[])`,
       [leadIds],
     );
+  }
+
+  private buildMatchFilterSql(filters: LeadFilters): {
+    whereClause: string;
+    params: unknown[];
+  } {
+    const clauses: string[] = [
+      '"phonesPrimaryPhoneNumber" IS NOT NULL',
+      '"phonesPrimaryPhoneNumber" != \'\'',
+    ];
+    const params: unknown[] = [];
+
+    if (
+      filters.companyRevenues &&
+      filters.companyRevenues.length > 0 &&
+      filters.companyRevenues.every((r) => typeof r === 'string')
+    ) {
+      params.push(filters.companyRevenues);
+      clauses.push(`"companyRevenue" = ANY($${params.length}::text[])`);
+    }
+
+    if (filters.maxAgeDays && filters.maxAgeDays > 0) {
+      params.push(filters.maxAgeDays);
+      clauses.push(
+        `"createdAt" >= NOW() - ($${params.length}::int * INTERVAL '1 day')`,
+      );
+    }
+
+    if (filters.usOnly) {
+      clauses.push(
+        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1\\\\d{10}$'`,
+      );
+    }
+
+    return { whereClause: clauses.join(' AND '), params };
+  }
+
+  async queryMatchingLeadIds(
+    workspaceId: string,
+    filters: LeadFilters,
+  ): Promise<string[]> {
+    const schema = getWorkspaceSchemaName(workspaceId);
+    const { whereClause, params } = this.buildMatchFilterSql(filters);
+
+    params.push(MATCH_ALL_MAX);
+
+    const sql = `SELECT id FROM "${schema}"."lead"
+       WHERE ${whereClause}
+       ORDER BY "createdAt" DESC
+       LIMIT $${params.length}`;
+
+    const rows = await this.dataSource.query(sql, params);
+
+    return rows.map((r: { id: string }) => r.id);
+  }
+
+  async previewMatching(
+    workspaceId: string,
+    filters: LeadFilters,
+    sampleSize: number,
+  ): Promise<{
+    count: number;
+    sample: Array<{
+      id: string;
+      name: string;
+      phone: string;
+      companyRevenue: string | null;
+      createdAt: string;
+    }>;
+  }> {
+    const schema = getWorkspaceSchemaName(workspaceId);
+    const { whereClause, params } = this.buildMatchFilterSql(filters);
+
+    const countRow = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS c FROM "${schema}"."lead" WHERE ${whereClause}`,
+      params,
+    );
+    const count = Math.min(countRow[0]?.c ?? 0, MATCH_ALL_MAX);
+
+    params.push(sampleSize);
+    const sample = await this.dataSource.query(
+      `SELECT id, name,
+              "phonesPrimaryPhoneNumber" AS phone,
+              "companyRevenue" AS "companyRevenue",
+              "createdAt"::text AS "createdAt"
+       FROM "${schema}"."lead"
+       WHERE ${whereClause}
+       ORDER BY "createdAt" DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+
+    return { count, sample };
   }
 
   async listRevenueValues(workspaceId: string): Promise<string[]> {

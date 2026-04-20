@@ -21,7 +21,10 @@ import { JustcallWebhookService } from 'src/modules/justcall/services/justcall-w
 import { JustcallService } from 'src/modules/justcall/services/justcall.service';
 
 type SendLeadsBody = {
-  leadIds: string[];
+  // Explicit lead IDs (from checkbox selection), OR pass matchAllFilters=true
+  // to fall back to the filter query across all leads in the workspace.
+  leadIds?: string[];
+  matchAllFilters?: boolean;
   // Provide either an existing campaignId, or a new campaign spec.
   campaignId?: number;
   newCampaign?: {
@@ -31,6 +34,15 @@ type SendLeadsBody = {
   filters?: {
     companyRevenues?: string[];
     usOnly?: boolean;
+    maxAgeDays?: number;
+  };
+};
+
+type PreviewBody = {
+  filters?: {
+    companyRevenues?: string[];
+    usOnly?: boolean;
+    maxAgeDays?: number;
   };
 };
 
@@ -71,6 +83,24 @@ export class JustcallController {
     return { data: await this.justcallService.listRevenueValues(workspaceId) };
   }
 
+  @Post('rest/integrations/justcall/preview')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
+  async preview(@Body() body: PreviewBody) {
+    const authContext = getWorkspaceAuthContext();
+    const workspaceId = authContext.workspace?.id;
+
+    if (!workspaceId) {
+      throw new BadRequestException('Workspace context not found.');
+    }
+
+    return this.justcallService.previewMatching(
+      workspaceId,
+      body.filters ?? {},
+      1000,
+    );
+  }
+
   @Post('rest/integrations/justcall/send-leads')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
@@ -82,8 +112,19 @@ export class JustcallController {
       throw new BadRequestException('Workspace context not found.');
     }
 
-    if (!Array.isArray(body.leadIds) || body.leadIds.length === 0) {
-      throw new BadRequestException('leadIds must be a non-empty array.');
+    let leadIds = body.leadIds ?? [];
+
+    if (leadIds.length === 0 && body.matchAllFilters) {
+      leadIds = await this.justcallService.queryMatchingLeadIds(
+        workspaceId,
+        body.filters ?? {},
+      );
+    }
+
+    if (leadIds.length === 0) {
+      throw new BadRequestException(
+        'No leads to send. Select leads or enable "send all matching" with filters.',
+      );
     }
 
     let campaignId = body.campaignId;
@@ -113,7 +154,7 @@ export class JustcallController {
     }
 
     const result = await this.justcallService.pushLeadsToCampaign(
-      body.leadIds,
+      leadIds,
       campaignId,
       workspaceId,
       body.filters ?? {},

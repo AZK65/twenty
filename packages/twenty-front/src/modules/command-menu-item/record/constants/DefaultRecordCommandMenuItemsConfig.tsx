@@ -442,7 +442,7 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
   },
   [MultipleRecordsCommandKeys.SEND_TO_JUSTCALL]: {
     type: CommandMenuItemType.Standard,
-    scope: CommandMenuItemScope.RecordSelection,
+    scope: CommandMenuItemScope.Object,
     key: MultipleRecordsCommandKeys.SEND_TO_JUSTCALL,
     label: msg`Send to JustCall`,
     shortLabel: msg`JustCall`,
@@ -450,11 +450,13 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
     Icon: IconPhone,
     accent: 'default',
     isPinned: true,
-    shouldBeRegistered: ({ objectMetadataItem, numberOfSelectedRecords }) =>
-      objectMetadataItem?.nameSingular === 'lead' &&
-      isDefined(numberOfSelectedRecords) &&
-      numberOfSelectedRecords > 0,
-    availableOn: [CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION],
+    shouldBeRegistered: ({ objectMetadataItem }) =>
+      objectMetadataItem?.nameSingular === 'lead',
+    availableOn: [
+      CommandMenuItemViewType.INDEX_PAGE_NO_SELECTION,
+      CommandMenuItemViewType.INDEX_PAGE_SINGLE_RECORD_SELECTION,
+      CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION,
+    ],
     component: <SendToJustcallMultipleRecordsCommand />,
   },
   [MultipleRecordsCommandKeys.EXPORT]: {

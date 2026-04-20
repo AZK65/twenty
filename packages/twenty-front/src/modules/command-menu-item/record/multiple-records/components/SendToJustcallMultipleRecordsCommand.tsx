@@ -4,8 +4,6 @@ import { useContext, useEffect, useState } from 'react';
 import { tokenPairState } from '@/auth/states/tokenPairState';
 import { CommandModal } from '@/command-menu-item/display/components/CommandModal';
 import { CommandConfigContext } from '@/command-menu-item/contexts/CommandConfigContext';
-import { contextStoreTargetedRecordsRuleComponentState } from '@/context-store/states/contextStoreTargetedRecordsRuleComponentState';
-import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { isDefined } from 'twenty-shared/utils';
@@ -105,6 +103,37 @@ const StyledRevenueGrid = styled.div`
   border-radius: ${themeCssVariables.border.radius.sm};
 `;
 
+const StyledPreviewTable = styled.table`
+  border-collapse: collapse;
+  font-size: ${themeCssVariables.font.size.xs};
+  width: 100%;
+  th, td {
+    border-bottom: 1px solid ${themeCssVariables.border.color.light};
+    padding: ${themeCssVariables.spacing[1]} ${themeCssVariables.spacing[2]};
+    text-align: left;
+  }
+  th {
+    color: ${themeCssVariables.font.color.secondary};
+    font-weight: ${themeCssVariables.font.weight.medium};
+  }
+  td {
+    color: ${themeCssVariables.font.color.primary};
+  }
+`;
+
+const StyledPreviewWrapper = styled.div`
+  border: 1px solid ${themeCssVariables.border.color.light};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  max-height: 360px;
+  overflow-y: auto;
+`;
+
+const StyledCount = styled.div`
+  color: ${themeCssVariables.font.color.primary};
+  font-weight: ${themeCssVariables.font.weight.medium};
+  font-size: ${themeCssVariables.font.size.sm};
+`;
+
 export const SendToJustcallMultipleRecordsCommand = () => {
   const actionConfig = useContext(CommandConfigContext);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
@@ -114,10 +143,6 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const authHeader: Record<string, string> = token
     ? { Authorization: `Bearer ${token}` }
     : {};
-
-  const targetedRecordsRule = useAtomComponentStateValue(
-    contextStoreTargetedRecordsRuleComponentState,
-  );
 
   const [mode, setMode] = useState<Mode>('existing');
 
@@ -135,6 +160,13 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const [revenueValues, setRevenueValues] = useState<string[]>([]);
   const [selectedRevenues, setSelectedRevenues] = useState<Set<string>>(new Set());
   const [usOnly, setUsOnly] = useState(true);
+  const [maxAgeDays, setMaxAgeDays] = useState<string>('');
+
+  const [matchingCount, setMatchingCount] = useState<number | null>(null);
+  const [sample, setSample] = useState<
+    Array<{ id: string; name: string; phone: string; companyRevenue: string | null; createdAt: string }>
+  >([]);
+  const [isCounting, setIsCounting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,19 +241,73 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     return null;
   }
 
-  const selectedLeadIds =
-    targetedRecordsRule?.mode === 'selection'
-      ? targetedRecordsRule.selectedRecordIds
-      : [];
+  // Live preview: count + sample rows, updates whenever filters change.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPreview = async () => {
+      setIsCounting(true);
+
+      try {
+        const response = await fetch(
+          `${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/preview`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify({
+              filters: {
+                usOnly,
+                companyRevenues: Array.from(selectedRevenues),
+                maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
+              },
+            }),
+          },
+        );
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const json = (await response.json()) as {
+          count?: number;
+          sample?: Array<{
+            id: string;
+            name: string;
+            phone: string;
+            companyRevenue: string | null;
+            createdAt: string;
+          }>;
+        };
+
+        if (!cancelled) {
+          setMatchingCount(json.count ?? 0);
+          setSample(json.sample ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setMatchingCount(null);
+          setSample([]);
+        }
+      } finally {
+        if (!cancelled) setIsCounting(false);
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [usOnly, selectedRevenues, maxAgeDays, authHeader]);
 
   const handleSend = async () => {
-    if (selectedLeadIds.length === 0) {
-      enqueueErrorSnackBar({ message: 'No leads selected.' });
+    if (!matchingCount || matchingCount === 0) {
+      enqueueErrorSnackBar({
+        message: 'No leads match the filters. Adjust filters and try again.',
+      });
 
       return;
     }
 
-    const body: Record<string, unknown> = { leadIds: selectedLeadIds };
+    const body: Record<string, unknown> = { matchAllFilters: true };
 
     if (mode === 'existing') {
       if (selectedCampaignId === null) {
@@ -250,6 +336,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     body.filters = {
       usOnly,
       companyRevenues: Array.from(selectedRevenues),
+      maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
     };
 
     setIsSending(true);
@@ -288,9 +375,16 @@ export const SendToJustcallMultipleRecordsCommand = () => {
 
   const subtitle = (
     <StyledForm>
-      <div>
-        {`Pushing ${selectedLeadIds.length} lead(s). Leads previously pushed will be skipped automatically.`}
-      </div>
+      <StyledCount>
+        {isCounting
+          ? 'Counting matching leads…'
+          : matchingCount === null
+            ? 'Apply filters below to preview matches.'
+            : `${matchingCount} lead(s) match your filters.`}
+      </StyledCount>
+      <StyledNote>
+        Leads already pushed to JustCall are skipped automatically. Capped at 1000 per send.
+      </StyledNote>
 
       <StyledTabs>
         <StyledTab
@@ -381,6 +475,16 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         US phone numbers only (normalizes to +1)
       </StyledCheckboxRow>
 
+      <StyledLabel>Only leads added to the CRM in the last N days (leave empty for no limit)</StyledLabel>
+      <StyledInput
+        type="number"
+        inputMode="numeric"
+        placeholder="e.g. 30"
+        min={1}
+        value={maxAgeDays}
+        onChange={(e) => setMaxAgeDays(e.target.value)}
+      />
+
       {revenueValues.length > 0 && (
         <>
           <StyledLabel>Company revenue (leave empty to include all)</StyledLabel>
@@ -405,10 +509,37 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         </>
       )}
 
-      <StyledNote>
-        Tip: filters apply only to the leads you've selected. Leads previously
-        pushed to JustCall are also skipped automatically.
-      </StyledNote>
+      {sample.length > 0 && (
+        <>
+          <StyledLabel>Preview ({sample.length})</StyledLabel>
+          <StyledPreviewWrapper>
+            <StyledPreviewTable>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Revenue</th>
+                  <th>Added</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sample.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.name}</td>
+                    <td>{row.phone}</td>
+                    <td>{row.companyRevenue ?? '—'}</td>
+                    <td>
+                      {row.createdAt
+                        ? new Date(row.createdAt).toLocaleDateString()
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </StyledPreviewTable>
+          </StyledPreviewWrapper>
+        </>
+      )}
     </StyledForm>
   );
 
