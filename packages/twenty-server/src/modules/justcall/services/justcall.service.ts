@@ -14,7 +14,7 @@ import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/ge
 //   JUSTCALL_API_KEY       — JustCall API key
 //   JUSTCALL_API_SECRET    — JustCall API secret (v2.1 uses Basic key:secret auth)
 
-const JUSTCALL_API_BASE = 'https://api.justcall.io/v2.1';
+const JUSTCALL_API_BASE = 'https://api.justcall.io/v1';
 
 type JustcallCampaign = {
   id: number;
@@ -78,10 +78,15 @@ export class JustcallService {
 
     try {
       const response = await fetch(
-        `${JUSTCALL_API_BASE}/sales_dialer/campaigns`,
+        `${JUSTCALL_API_BASE}/autodialer/campaigns/list`,
         {
-          method: 'GET',
-          headers: { Authorization: auth, Accept: 'application/json' },
+          method: 'POST',
+          headers: {
+            Authorization: auth,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: '{}',
           signal: AbortSignal.timeout(15_000),
         },
       );
@@ -108,79 +113,58 @@ export class JustcallService {
     }
   }
 
-  async listPhoneNumbers(): Promise<{
-    phones: Array<{ id: number | string; name?: string; number?: string }>;
-    debug?: Record<string, unknown>;
-  }> {
+  async listPhoneNumbers(): Promise<
+    Array<{ id: number | string; name?: string; number?: string }>
+  > {
     const auth = this.getAuthHeader();
 
-    if (!auth) return { phones: [], debug: { reason: 'no_auth_header' } };
+    if (!auth) return [];
 
-    // JustCall has moved this endpoint around across API versions; try the
-    // known paths in order until one returns data.
-    const candidates = [
-      `${JUSTCALL_API_BASE}/phone_numbers`,
-      `https://api.justcall.io/v2/phone_numbers`,
-      `${JUSTCALL_API_BASE}/users/me/phone_numbers`,
-      `${JUSTCALL_API_BASE}/accounts/phone_numbers`,
-    ];
+    try {
+      const response = await fetch(`${JUSTCALL_API_BASE}/numbers/list`, {
+        method: 'POST',
+        headers: {
+          Authorization: auth,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(15_000),
+      });
 
-    const debug: Array<Record<string, unknown>> = [];
-
-    for (const url of candidates) {
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: { Authorization: auth, Accept: 'application/json' },
-          signal: AbortSignal.timeout(15_000),
-        });
-
+      if (!response.ok) {
         const text = await response.text();
 
-        debug.push({
-          url,
-          status: response.status,
-          body: text.slice(0, 500),
-        });
+        this.logger.warn(
+          `JustCall listPhoneNumbers failed: ${response.status} ${text}`,
+        );
 
-        if (!response.ok) continue;
-
-        let json: {
-          data?: Array<{
-            id?: number | string;
-            name?: string;
-            friendly_name?: string;
-            number?: string;
-            phone_number?: string;
-          }>;
-        };
-
-        try {
-          json = JSON.parse(text);
-        } catch {
-          continue;
-        }
-
-        const rows = json.data ?? [];
-
-        if (rows.length === 0) continue;
-
-        const phones = rows.map((p) => ({
-          id: p.id ?? p.phone_number ?? '',
-          name: p.friendly_name ?? p.name,
-          number: p.phone_number ?? p.number,
-        }));
-
-        return { phones, debug: { tried: debug, matched: url } };
-      } catch (error) {
-        debug.push({
-          url,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        return [];
       }
-    }
 
-    return { phones: [], debug: { tried: debug, matched: null } };
+      const json = (await response.json()) as {
+        data?: Array<{
+          id?: number | string;
+          phone?: string;
+          phone_number?: string;
+          friendly_name?: string;
+          custom_name?: string;
+          name?: string;
+        }>;
+      };
+
+      return (json.data ?? []).map((p) => ({
+        id: p.id ?? p.phone ?? p.phone_number ?? '',
+        name: p.custom_name || p.friendly_name || p.name,
+        number: p.phone ?? p.phone_number,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `JustCall listPhoneNumbers error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      return [];
+    }
   }
 
   async createCampaign(
@@ -193,7 +177,7 @@ export class JustcallService {
 
     try {
       const response = await fetch(
-        `${JUSTCALL_API_BASE}/sales_dialer/campaigns`,
+        `${JUSTCALL_API_BASE}/autodialer/campaigns/create`,
         {
           method: 'POST',
           headers: {
@@ -203,25 +187,27 @@ export class JustcallService {
           },
           body: JSON.stringify({
             name,
-            phone_number_id: phoneNumberId,
+            country_code: 'US',
+            type: 'predictive',
+            justcall_number: String(phoneNumberId).replace(/\D/g, ''),
           }),
           signal: AbortSignal.timeout(15_000),
         },
       );
 
       const json = (await response.json()) as {
-        data?: JustcallCampaign;
+        status?: string;
+        campaign_id?: number | string;
         message?: string;
-        error?: string;
       };
 
-      if (!response.ok) {
+      if (!response.ok || !json.campaign_id) {
         throw new Error(
-          `JustCall createCampaign ${response.status}: ${json.error ?? json.message ?? 'unknown'}`,
+          `JustCall createCampaign ${response.status}: ${json.message ?? 'unknown'}`,
         );
       }
 
-      return json.data ?? null;
+      return { id: Number(json.campaign_id), name };
     } catch (error) {
       this.logger.error(
         `JustCall createCampaign error: ${error instanceof Error ? error.message : String(error)}`,
@@ -431,6 +417,7 @@ export class JustcallService {
     const lastName = rest.join(' ') || undefined;
 
     const body: Record<string, unknown> = {
+      campaign_id: campaignId,
       first_name: firstName || name,
       phone,
     };
@@ -439,7 +426,7 @@ export class JustcallService {
     if (email) body.email = email;
 
     const response = await fetch(
-      `${JUSTCALL_API_BASE}/sales_dialer/campaigns/${campaignId}/contacts`,
+      `${JUSTCALL_API_BASE}/autodialer/campaigns/add`,
       {
         method: 'POST',
         headers: {
@@ -453,18 +440,18 @@ export class JustcallService {
     );
 
     const json = (await response.json()) as {
-      data?: { id?: string | number; contact_id?: string | number };
+      status?: string;
+      data?: Array<{ contact_id?: string | number }>;
       message?: string;
-      error?: string;
     };
 
-    if (!response.ok) {
+    if (!response.ok || json.status !== 'success') {
       throw new Error(
-        `JustCall API ${response.status}: ${json.error ?? json.message ?? 'unknown'}`,
+        `JustCall API ${response.status}: ${json.message ?? 'unknown'}`,
       );
     }
 
-    const contactId = json.data?.id ?? json.data?.contact_id;
+    const contactId = json.data?.[0]?.contact_id;
 
     return contactId !== undefined ? String(contactId) : undefined;
   }
