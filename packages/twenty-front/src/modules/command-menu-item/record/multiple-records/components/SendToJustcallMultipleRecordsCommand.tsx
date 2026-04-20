@@ -1,10 +1,12 @@
 import { styled } from '@linaria/react';
 import { useContext, useEffect, useState } from 'react';
 
+import { tokenPairState } from '@/auth/states/tokenPairState';
 import { CommandModal } from '@/command-menu-item/display/components/CommandModal';
 import { CommandConfigContext } from '@/command-menu-item/contexts/CommandConfigContext';
 import { contextStoreTargetedRecordsRuleComponentState } from '@/context-store/states/contextStoreTargetedRecordsRuleComponentState';
 import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { isDefined } from 'twenty-shared/utils';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
@@ -107,6 +109,12 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const actionConfig = useContext(CommandConfigContext);
   const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
 
+  const tokenPair = useAtomStateValue(tokenPairState);
+  const token = tokenPair?.accessOrWorkspaceAgnosticToken?.token;
+  const authHeader: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+
   const targetedRecordsRule = useAtomComponentStateValue(
     contextStoreTargetedRecordsRuleComponentState,
   );
@@ -139,13 +147,15 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         const [campaignsRes, phonesRes, revenuesRes] = await Promise.all([
           fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/campaigns`, {
             credentials: 'include',
+            headers: { ...authHeader },
           }),
           fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/phones`, {
             credentials: 'include',
+            headers: { ...authHeader },
           }),
           fetch(
             `${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/revenue-values`,
-            { credentials: 'include' },
+            { credentials: 'include', headers: { ...authHeader } },
           ),
         ]);
 
@@ -250,7 +260,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
         {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify(body),
         },
       );
