@@ -451,7 +451,7 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
     accent: 'default',
     isPinned: true,
     shouldBeRegistered: ({ objectMetadataItem, numberOfSelectedRecords }) =>
-      objectMetadataItem?.nameSingular === CoreObjectNameSingular.Lead &&
+      objectMetadataItem?.nameSingular === 'lead' &&
       isDefined(numberOfSelectedRecords) &&
       numberOfSelectedRecords > 0,
     availableOn: [CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION],
