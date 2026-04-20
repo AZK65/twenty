@@ -56,7 +56,7 @@ import {
   IconLayout,
   IconLayoutDashboard,
   IconPencil,
-  IconPhoneCall,
+  IconPhone,
   IconPlus,
   IconRefresh,
   IconRotate2,
@@ -447,7 +447,7 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
     label: msg`Send to JustCall`,
     shortLabel: msg`JustCall`,
     position: 15.5,
-    Icon: IconPhoneCall,
+    Icon: IconPhone,
     accent: 'default',
     isPinned: true,
     shouldBeRegistered: ({ objectMetadataItem, numberOfSelectedRecords }) =>
