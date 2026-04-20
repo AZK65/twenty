@@ -29,7 +29,7 @@ const StyledForm = styled.div`
   flex-direction: column;
   gap: ${themeCssVariables.spacing[2]};
   margin-top: ${themeCssVariables.spacing[2]};
-  min-width: 540px;
+  width: 100%;
 `;
 
 const StyledTabs = styled.div`
