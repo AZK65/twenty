@@ -100,6 +100,101 @@ export class JustcallService {
     }
   }
 
+  async listPhoneNumbers(): Promise<
+    Array<{ id: number | string; name?: string; number?: string }>
+  > {
+    const auth = this.getAuthHeader();
+
+    if (!auth) return [];
+
+    try {
+      const response = await fetch(`${JUSTCALL_API_BASE}/phone_numbers`, {
+        method: 'GET',
+        headers: { Authorization: auth, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+
+        this.logger.warn(
+          `JustCall listPhoneNumbers failed: ${response.status} ${text}`,
+        );
+
+        return [];
+      }
+
+      const json = (await response.json()) as {
+        data?: Array<{
+          id?: number | string;
+          name?: string;
+          friendly_name?: string;
+          number?: string;
+          phone_number?: string;
+        }>;
+      };
+
+      return (json.data ?? []).map((p) => ({
+        id: p.id ?? p.phone_number ?? '',
+        name: p.friendly_name ?? p.name,
+        number: p.phone_number ?? p.number,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `JustCall listPhoneNumbers error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      return [];
+    }
+  }
+
+  async createCampaign(
+    name: string,
+    phoneNumberId: number | string,
+  ): Promise<JustcallCampaign | null> {
+    const auth = this.getAuthHeader();
+
+    if (!auth) return null;
+
+    try {
+      const response = await fetch(
+        `${JUSTCALL_API_BASE}/sales_dialer/campaigns`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: auth,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            name,
+            phone_number_id: phoneNumberId,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+
+      const json = (await response.json()) as {
+        data?: JustcallCampaign;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(
+          `JustCall createCampaign ${response.status}: ${json.error ?? json.message ?? 'unknown'}`,
+        );
+      }
+
+      return json.data ?? null;
+    } catch (error) {
+      this.logger.error(
+        `JustCall createCampaign error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
   async pushLeadsToCampaign(
     leadIds: string[],
     campaignId: number,

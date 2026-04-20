@@ -17,11 +17,37 @@ type JustcallCampaign = {
   status?: string;
 };
 
+type JustcallPhone = {
+  id: number | string;
+  name?: string;
+  number?: string;
+};
+
+type Mode = 'existing' | 'new';
+
 const StyledForm = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${themeCssVariables.spacing[2]};
   margin-top: ${themeCssVariables.spacing[2]};
+`;
+
+const StyledTabs = styled.div`
+  display: flex;
+  gap: ${themeCssVariables.spacing[1]};
+`;
+
+const StyledTab = styled.button<{ active: boolean }>`
+  background: ${({ active }) =>
+    active
+      ? themeCssVariables.background.tertiary
+      : themeCssVariables.background.primary};
+  border: 1px solid ${themeCssVariables.border.color.medium};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  color: ${themeCssVariables.font.color.primary};
+  cursor: pointer;
+  font-size: ${themeCssVariables.font.size.sm};
+  padding: ${themeCssVariables.spacing[1]} ${themeCssVariables.spacing[3]};
 `;
 
 const StyledLabel = styled.label`
@@ -31,6 +57,15 @@ const StyledLabel = styled.label`
 `;
 
 const StyledSelect = styled.select`
+  background: ${themeCssVariables.background.primary};
+  border: 1px solid ${themeCssVariables.border.color.medium};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  color: ${themeCssVariables.font.color.primary};
+  font-size: ${themeCssVariables.font.size.sm};
+  padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[3]};
+`;
+
+const StyledInput = styled.input`
   background: ${themeCssVariables.background.primary};
   border: 1px solid ${themeCssVariables.border.color.medium};
   border-radius: ${themeCssVariables.border.radius.sm};
@@ -52,52 +87,74 @@ export const SendToJustcallMultipleRecordsCommand = () => {
     contextStoreTargetedRecordsRuleComponentState,
   );
 
+  const [mode, setMode] = useState<Mode>('existing');
+
   const [campaigns, setCampaigns] = useState<JustcallCampaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+
+  const [phones, setPhones] = useState<JustcallPhone[]>([]);
+  const [selectedPhoneId, setSelectedPhoneId] = useState<number | string | null>(null);
+  const [isLoadingPhones, setIsLoadingPhones] = useState(false);
+
+  const [newCampaignName, setNewCampaignName] = useState('');
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadCampaigns = async () => {
+    const load = async () => {
       setIsLoadingCampaigns(true);
+      setIsLoadingPhones(true);
 
       try {
-        const response = await fetch(
-          `${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/campaigns`,
-          { credentials: 'include' },
-        );
+        const [campaignsRes, phonesRes] = await Promise.all([
+          fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/campaigns`, {
+            credentials: 'include',
+          }),
+          fetch(`${REACT_APP_SERVER_BASE_URL}/rest/integrations/justcall/phones`, {
+            credentials: 'include',
+          }),
+        ]);
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const json = (await response.json()) as { data?: JustcallCampaign[] };
+        const campaignsJson = (await campaignsRes.json()) as {
+          data?: JustcallCampaign[];
+        };
+        const phonesJson = (await phonesRes.json()) as { data?: JustcallPhone[] };
 
         if (cancelled) return;
 
-        const list = json.data ?? [];
+        const campaignList = campaignsJson.data ?? [];
+        const phoneList = phonesJson.data ?? [];
 
-        setCampaigns(list);
+        setCampaigns(campaignList);
+        setPhones(phoneList);
 
-        if (list.length > 0) {
-          setSelectedCampaignId(list[0].id);
+        if (campaignList.length > 0) {
+          setSelectedCampaignId(campaignList[0].id);
+        } else {
+          // No campaigns yet → default to new-campaign mode
+          setMode('new');
+        }
+
+        if (phoneList.length > 0) {
+          setSelectedPhoneId(phoneList[0].id);
         }
       } catch (error) {
         if (!cancelled) {
           enqueueErrorSnackBar({
-            message: t`Failed to load JustCall campaigns`,
+            message: t`Failed to load JustCall campaigns/phones`,
           });
         }
       } finally {
         if (!cancelled) {
           setIsLoadingCampaigns(false);
+          setIsLoadingPhones(false);
         }
       }
     };
 
-    loadCampaigns();
+    load();
 
     return () => {
       cancelled = true;
@@ -114,16 +171,36 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       : [];
 
   const handleSend = async () => {
-    if (selectedCampaignId === null) {
-      enqueueErrorSnackBar({ message: t`Pick a campaign first.` });
-
-      return;
-    }
-
     if (selectedLeadIds.length === 0) {
       enqueueErrorSnackBar({ message: t`No leads selected.` });
 
       return;
+    }
+
+    const body: Record<string, unknown> = { leadIds: selectedLeadIds };
+
+    if (mode === 'existing') {
+      if (selectedCampaignId === null) {
+        enqueueErrorSnackBar({ message: t`Pick a campaign first.` });
+
+        return;
+      }
+      body.campaignId = selectedCampaignId;
+    } else {
+      if (!newCampaignName.trim()) {
+        enqueueErrorSnackBar({ message: t`Enter a campaign name.` });
+
+        return;
+      }
+      if (selectedPhoneId === null) {
+        enqueueErrorSnackBar({ message: t`Pick a phone number.` });
+
+        return;
+      }
+      body.newCampaign = {
+        name: newCampaignName.trim(),
+        phoneNumberId: selectedPhoneId,
+      };
     }
 
     setIsSending(true);
@@ -135,10 +212,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            leadIds: selectedLeadIds,
-            campaignId: selectedCampaignId,
-          }),
+          body: JSON.stringify(body),
         },
       );
 
@@ -165,25 +239,85 @@ export const SendToJustcallMultipleRecordsCommand = () => {
   const subtitle = (
     <StyledForm>
       <div>
-        {t`Pushing ${selectedLeadIds.length} lead(s) to the selected campaign. Leads already pushed previously will be skipped automatically.`}
+        {t`Pushing ${selectedLeadIds.length} lead(s). Leads previously pushed will be skipped automatically.`}
       </div>
-      <StyledLabel htmlFor="justcall-campaign-select">{t`Campaign`}</StyledLabel>
-      <StyledSelect
-        id="justcall-campaign-select"
-        value={selectedCampaignId ?? ''}
-        onChange={(e) => setSelectedCampaignId(Number(e.target.value))}
-        disabled={isLoadingCampaigns || campaigns.length === 0}
-      >
-        {isLoadingCampaigns && <option>{t`Loading campaigns…`}</option>}
-        {!isLoadingCampaigns && campaigns.length === 0 && (
-          <option>{t`No campaigns found`}</option>
-        )}
-        {campaigns.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </StyledSelect>
+
+      <StyledTabs>
+        <StyledTab
+          type="button"
+          active={mode === 'existing'}
+          onClick={() => setMode('existing')}
+        >
+          {t`Existing campaign`}
+        </StyledTab>
+        <StyledTab
+          type="button"
+          active={mode === 'new'}
+          onClick={() => setMode('new')}
+        >
+          {t`New campaign`}
+        </StyledTab>
+      </StyledTabs>
+
+      {mode === 'existing' && (
+        <>
+          <StyledLabel htmlFor="justcall-campaign-select">{t`Campaign`}</StyledLabel>
+          <StyledSelect
+            id="justcall-campaign-select"
+            value={selectedCampaignId ?? ''}
+            onChange={(e) => setSelectedCampaignId(Number(e.target.value))}
+            disabled={isLoadingCampaigns || campaigns.length === 0}
+          >
+            {isLoadingCampaigns && <option>{t`Loading campaigns…`}</option>}
+            {!isLoadingCampaigns && campaigns.length === 0 && (
+              <option>{t`No campaigns found — switch to New campaign`}</option>
+            )}
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </StyledSelect>
+        </>
+      )}
+
+      {mode === 'new' && (
+        <>
+          <StyledLabel htmlFor="justcall-new-name">{t`Campaign name`}</StyledLabel>
+          <StyledInput
+            id="justcall-new-name"
+            type="text"
+            placeholder="US Outbound — April"
+            value={newCampaignName}
+            onChange={(e) => setNewCampaignName(e.target.value)}
+          />
+          <StyledLabel htmlFor="justcall-phone-select">
+            {t`Outbound phone number`}
+          </StyledLabel>
+          <StyledSelect
+            id="justcall-phone-select"
+            value={selectedPhoneId ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const asNum = Number(raw);
+
+              setSelectedPhoneId(isNaN(asNum) ? raw : asNum);
+            }}
+            disabled={isLoadingPhones || phones.length === 0}
+          >
+            {isLoadingPhones && <option>{t`Loading phones…`}</option>}
+            {!isLoadingPhones && phones.length === 0 && (
+              <option>{t`No JustCall numbers found`}</option>
+            )}
+            {phones.map((p) => (
+              <option key={String(p.id)} value={p.id}>
+                {p.name ? `${p.name} — ${p.number ?? ''}` : p.number ?? String(p.id)}
+              </option>
+            ))}
+          </StyledSelect>
+        </>
+      )}
+
       <StyledNote>
         {t`Tip: filter the leads list (e.g. Country = US) and select the rows you want to send.`}
       </StyledNote>
@@ -195,7 +329,7 @@ export const SendToJustcallMultipleRecordsCommand = () => {
       title={t`Send to JustCall`}
       subtitle={subtitle}
       onConfirmClick={handleSend}
-      confirmButtonText={t`Send to dialer`}
+      confirmButtonText={mode === 'new' ? t`Create & send` : t`Send to dialer`}
       confirmButtonAccent="blue"
       isLoading={isSending}
     />

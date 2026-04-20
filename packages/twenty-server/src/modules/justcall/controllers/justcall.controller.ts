@@ -22,7 +22,12 @@ import { JustcallService } from 'src/modules/justcall/services/justcall.service'
 
 type SendLeadsBody = {
   leadIds: string[];
-  campaignId: number;
+  // Provide either an existing campaignId, or a new campaign spec.
+  campaignId?: number;
+  newCampaign?: {
+    name: string;
+    phoneNumberId: number | string;
+  };
 };
 
 @Controller()
@@ -43,6 +48,12 @@ export class JustcallController {
     return { data: await this.justcallService.listCampaigns() };
   }
 
+  @Get('rest/integrations/justcall/phones')
+  @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
+  async listPhones() {
+    return { data: await this.justcallService.listPhoneNumbers() };
+  }
+
   @Post('rest/integrations/justcall/send-leads')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
@@ -58,17 +69,39 @@ export class JustcallController {
       throw new BadRequestException('leadIds must be a non-empty array.');
     }
 
-    if (!body.campaignId || typeof body.campaignId !== 'number') {
-      throw new BadRequestException('campaignId must be a number.');
+    let campaignId = body.campaignId;
+
+    if (!campaignId) {
+      if (!body.newCampaign?.name || !body.newCampaign?.phoneNumberId) {
+        throw new BadRequestException(
+          'Provide either campaignId or newCampaign { name, phoneNumberId }.',
+        );
+      }
+
+      const created = await this.justcallService.createCampaign(
+        body.newCampaign.name,
+        body.newCampaign.phoneNumberId,
+      );
+
+      if (!created?.id) {
+        throw new BadRequestException(
+          'Failed to create JustCall campaign (no id returned).',
+        );
+      }
+
+      campaignId = created.id;
+      this.logger.log(
+        `Created JustCall campaign "${body.newCampaign.name}" (id=${campaignId})`,
+      );
     }
 
     const result = await this.justcallService.pushLeadsToCampaign(
       body.leadIds,
-      body.campaignId,
+      campaignId,
       workspaceId,
     );
 
-    return { success: true, ...result };
+    return { success: true, campaignId, ...result };
   }
 
   // ─── Inbound: JustCall → CRM ─────────────────────────────────────────
