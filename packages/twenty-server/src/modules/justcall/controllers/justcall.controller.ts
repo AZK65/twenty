@@ -55,7 +55,9 @@ export class JustcallController {
   @Get('rest/integrations/justcall/phones')
   @UseGuards(JwtAuthGuard, WorkspaceAuthGuard, NoPermissionGuard)
   async listPhones() {
-    return { data: await this.justcallService.listPhoneNumbers() };
+    const { phones, debug } = await this.justcallService.listPhoneNumbers();
+
+    return { data: phones, debug };
   }
 
   @Get('rest/integrations/justcall/revenue-values')

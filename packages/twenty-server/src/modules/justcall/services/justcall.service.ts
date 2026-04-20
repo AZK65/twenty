@@ -108,53 +108,79 @@ export class JustcallService {
     }
   }
 
-  async listPhoneNumbers(): Promise<
-    Array<{ id: number | string; name?: string; number?: string }>
-  > {
+  async listPhoneNumbers(): Promise<{
+    phones: Array<{ id: number | string; name?: string; number?: string }>;
+    debug?: Record<string, unknown>;
+  }> {
     const auth = this.getAuthHeader();
 
-    if (!auth) return [];
+    if (!auth) return { phones: [], debug: { reason: 'no_auth_header' } };
 
-    try {
-      const response = await fetch(`${JUSTCALL_API_BASE}/phone_numbers`, {
-        method: 'GET',
-        headers: { Authorization: auth, Accept: 'application/json' },
-        signal: AbortSignal.timeout(15_000),
-      });
+    // JustCall has moved this endpoint around across API versions; try the
+    // known paths in order until one returns data.
+    const candidates = [
+      `${JUSTCALL_API_BASE}/phone_numbers`,
+      `https://api.justcall.io/v2/phone_numbers`,
+      `${JUSTCALL_API_BASE}/users/me/phone_numbers`,
+      `${JUSTCALL_API_BASE}/accounts/phone_numbers`,
+    ];
 
-      if (!response.ok) {
+    const debug: Array<Record<string, unknown>> = [];
+
+    for (const url of candidates) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { Authorization: auth, Accept: 'application/json' },
+          signal: AbortSignal.timeout(15_000),
+        });
+
         const text = await response.text();
 
-        this.logger.error(
-          `JustCall listPhoneNumbers failed: ${response.status} ${text}`,
-        );
-        throw new Error(
-          `JustCall API ${response.status}: ${text.slice(0, 200)}`,
-        );
+        debug.push({
+          url,
+          status: response.status,
+          body: text.slice(0, 500),
+        });
+
+        if (!response.ok) continue;
+
+        let json: {
+          data?: Array<{
+            id?: number | string;
+            name?: string;
+            friendly_name?: string;
+            number?: string;
+            phone_number?: string;
+          }>;
+        };
+
+        try {
+          json = JSON.parse(text);
+        } catch {
+          continue;
+        }
+
+        const rows = json.data ?? [];
+
+        if (rows.length === 0) continue;
+
+        const phones = rows.map((p) => ({
+          id: p.id ?? p.phone_number ?? '',
+          name: p.friendly_name ?? p.name,
+          number: p.phone_number ?? p.number,
+        }));
+
+        return { phones, debug: { tried: debug, matched: url } };
+      } catch (error) {
+        debug.push({
+          url,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
-
-      const json = (await response.json()) as {
-        data?: Array<{
-          id?: number | string;
-          name?: string;
-          friendly_name?: string;
-          number?: string;
-          phone_number?: string;
-        }>;
-      };
-
-      return (json.data ?? []).map((p) => ({
-        id: p.id ?? p.phone_number ?? '',
-        name: p.friendly_name ?? p.name,
-        number: p.phone_number ?? p.number,
-      }));
-    } catch (error) {
-      this.logger.error(
-        `JustCall listPhoneNumbers error: ${error instanceof Error ? error.message : String(error)}`,
-      );
-
-      return [];
     }
+
+    return { phones: [], debug: { tried: debug, matched: null } };
   }
 
   async createCampaign(
