@@ -391,8 +391,10 @@ export class JustcallService {
     }
 
     if (filters.usOnly) {
+      // NANP: +1 + 3-digit area code (first digit 2-9) + 7-digit subscriber.
+      // So the digits-only form is: 1 + [2-9] + 9 more digits = 11 digits total.
       clauses.push(
-        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1\\\\d{10}$'`,
+        `regexp_replace("phonesPrimaryPhoneNumber", '\\\\D', '', 'g') ~ '^1[2-9]\\\\d{9}$'`,
       );
     }
 
@@ -470,14 +472,11 @@ export class JustcallService {
     return rows.map((r: { value: string }) => r.value);
   }
 
-  // A phone is "US" if the E.164 form starts with +1 and the national
-  // number is 10 digits. Rough but good enough for filtering CRM leads.
+  // NANP: +1 + area code where area-code[0] is 2-9 + 7 subscriber digits.
   private isUsPhone(e164: string): boolean {
-    if (!e164.startsWith('+1')) return false;
+    const digits = e164.replace(/\D/g, '');
 
-    const digits = e164.slice(2).replace(/\D/g, '');
-
-    return digits.length === 10;
+    return /^1[2-9]\d{9}$/.test(digits);
   }
 
   private async findAlreadyPushedLeadIds(

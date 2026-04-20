@@ -29,6 +29,7 @@ const StyledForm = styled.div`
   flex-direction: column;
   gap: ${themeCssVariables.spacing[2]};
   margin-top: ${themeCssVariables.spacing[2]};
+  min-width: 540px;
 `;
 
 const StyledTabs = styled.div`
@@ -106,7 +107,9 @@ const StyledRevenueGrid = styled.div`
 const StyledPreviewTable = styled.table`
   border-collapse: collapse;
   font-size: ${themeCssVariables.font.size.xs};
-  width: 100%;
+  min-width: 100%;
+  table-layout: auto;
+  white-space: nowrap;
   th, td {
     border-bottom: 1px solid ${themeCssVariables.border.color.light};
     padding: ${themeCssVariables.spacing[1]} ${themeCssVariables.spacing[2]};
@@ -125,7 +128,7 @@ const StyledPreviewWrapper = styled.div`
   border: 1px solid ${themeCssVariables.border.color.light};
   border-radius: ${themeCssVariables.border.radius.sm};
   max-height: 360px;
-  overflow-y: auto;
+  overflow: auto;
 `;
 
 const StyledCount = styled.div`
