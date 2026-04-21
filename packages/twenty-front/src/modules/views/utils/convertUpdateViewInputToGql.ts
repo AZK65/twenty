@@ -21,7 +21,8 @@ export const convertUpdateViewInputToGql = (
     ...(isDefined(view.anyFieldFilterValue) && {
       anyFieldFilterValue: view.anyFieldFilterValue,
     }),
-    ...(isDefined(view.key) && { key: view.key }),
+    // view.key is a read-only system identifier (e.g. 'INDEX'); the
+    // UpdateViewInput schema rejects it. Do NOT forward it.
     ...(isDefined(view.openRecordIn) && {
       openRecordIn: view.openRecordIn,
     }),
