@@ -3,6 +3,7 @@ import { styled } from '@linaria/react';
 import { EventRowActivity } from '@/activities/timeline-activities/rows/activity/components/EventRowActivity';
 import { EventRowCalendarEvent } from '@/activities/timeline-activities/rows/calendar/components/EventRowCalendarEvent';
 import { EventRowMainObject } from '@/activities/timeline-activities/rows/main-object/components/EventRowMainObject';
+import { EventRowMeeting } from '@/activities/timeline-activities/rows/meeting/components/EventRowMeeting';
 import { EventRowMessage } from '@/activities/timeline-activities/rows/message/components/EventRowMessage';
 import { EventRowPhoneCall } from '@/activities/timeline-activities/rows/phone-call/components/EventRowPhoneCall';
 import { type TimelineActivity } from '@/activities/timeline-activities/types/TimelineActivity';
@@ -46,6 +47,19 @@ export const EventRowDynamicComponent = ({
   if (event.name === 'lead.phone_call_completed') {
     return (
       <EventRowPhoneCall
+        labelIdentifierValue={labelIdentifierValue}
+        event={event}
+        mainObjectMetadataItem={mainObjectMetadataItem}
+        linkedObjectMetadataItem={linkedObjectMetadataItem}
+        authorFullName={authorFullName}
+        createdAt={createdAt}
+      />
+    );
+  }
+
+  if (event.name === 'lead.meeting_completed') {
+    return (
+      <EventRowMeeting
         labelIdentifierValue={labelIdentifierValue}
         event={event}
         mainObjectMetadataItem={mainObjectMetadataItem}
