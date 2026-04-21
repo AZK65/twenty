@@ -1,4 +1,5 @@
 import { styled } from '@linaria/react';
+import { useEffect, useRef } from 'react';
 
 import { contextStoreCurrentViewIdComponentState } from '@/context-store/states/contextStoreCurrentViewIdComponentState';
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
@@ -92,14 +93,39 @@ export const UpdateViewButtonGroup = () => {
   const { viewAnyFieldFilterDifferentFromCurrentAnyFieldFilter } =
     useIsViewAnyFieldFilterDifferentFromCurrentAnyFieldFilter();
 
-  const canShowButton =
+  const isDirty =
     (viewFiltersAreDifferentFromRecordFilters ||
       viewSortsAreDifferentFromRecordSorts ||
       viewFilterGroupsAreDifferentFromRecordFilterGroups ||
       viewAnyFieldFilterDifferentFromCurrentAnyFieldFilter) &&
     !hasFiltersQueryParams;
 
-  if (!canShowButton) {
+  // Auto-save: whenever the view is dirty and the user has permission,
+  // persist to the view after a short debounce so rapid edits don't spam
+  // the API. Means refresh preserves sort/filter without a manual click.
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isDirty || !canPersistChanges) {
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveCurrentViewFilterAndSorts();
+    }, 800);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [isDirty, canPersistChanges, saveCurrentViewFilterAndSorts]);
+
+  if (!isDirty) {
     return <></>;
   }
 
