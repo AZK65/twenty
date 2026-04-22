@@ -101,12 +101,14 @@ export const UpdateViewButtonGroup = () => {
     !hasFiltersQueryParams;
 
   // Auto-save: whenever the view is dirty and the user has permission,
-  // persist to the view after a short debounce so rapid edits don't spam
-  // the API. Means refresh preserves sort/filter without a manual click.
+  // persist after a debounce. isSavingRef prevents stacking concurrent saves
+  // while Apollo's cache catches up — otherwise the same viewSort row gets
+  // inserted twice and the second insert 500s on a unique constraint.
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavingRef = useRef(false);
 
   useEffect(() => {
-    if (!isDirty || !canPersistChanges) {
+    if (!isDirty || !canPersistChanges || isSavingRef.current) {
       return;
     }
 
@@ -114,8 +116,16 @@ export const UpdateViewButtonGroup = () => {
       clearTimeout(autoSaveTimerRef.current);
     }
 
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveCurrentViewFilterAndSorts();
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (isSavingRef.current) return;
+      isSavingRef.current = true;
+      try {
+        await saveCurrentViewFilterAndSorts();
+      } catch {
+        // swallow; the manual Update View button is still available
+      } finally {
+        isSavingRef.current = false;
+      }
     }, 800);
 
     return () => {
