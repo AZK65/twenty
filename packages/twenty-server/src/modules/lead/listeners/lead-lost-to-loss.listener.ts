@@ -72,7 +72,7 @@ export class LeadLostToLossListener {
 
         // Dedupe by name — best-effort.
         const existing = await this.dataSource.query(
-          `SELECT id FROM "${schema}"."_losses" WHERE name = $1 LIMIT 1`,
+          `SELECT id FROM "${schema}"."_loss" WHERE name = $1 LIMIT 1`,
           [lead.name],
         );
 
@@ -150,7 +150,7 @@ export class LeadLostToLossListener {
           placeholders.push('NOW()');
         }
 
-        const sql = `INSERT INTO "${schema}"."_losses" (${insertCols.join(', ')})
+        const sql = `INSERT INTO "${schema}"."_loss" (${insertCols.join(', ')})
           VALUES (${placeholders.join(', ')})`;
 
         await this.dataSource.query(sql, insertVals);
@@ -205,7 +205,7 @@ export class LeadLostToLossListener {
     try {
       const rows = await this.dataSource.query(
         `SELECT column_name FROM information_schema.columns
-         WHERE table_schema = $1 AND table_name = '_losses'`,
+         WHERE table_schema = $1 AND table_name = '_loss'`,
         [schema],
       );
       const set = new Set<string>(
