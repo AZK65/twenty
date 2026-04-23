@@ -7,6 +7,7 @@ import { LeadAssignmentNotificationJob } from 'src/modules/lead/jobs/lead-assign
 import { LeadAssignmentListener } from 'src/modules/lead/listeners/lead-assignment.listener';
 import { LeadEnrichmentListener } from 'src/modules/lead/listeners/lead-enrichment.listener';
 import { LeadStageTransitionListener } from 'src/modules/lead/listeners/lead-stage-transition.listener';
+import { LeadSentProposalToOpportunityListener } from 'src/modules/lead/listeners/lead-sent-proposal-to-opportunity.listener';
 import { LeadWonToClientListener } from 'src/modules/lead/listeners/lead-won-to-client.listener';
 import { RenCallBookedListener } from 'src/modules/lead/listeners/ren-call-booked.listener';
 import { RenCustomerStatusListener } from 'src/modules/lead/listeners/ren-customer-status.listener';
@@ -32,6 +33,7 @@ import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.servi
     LeadEnrichmentListener,
     LeadEnrichmentService,
     LeadStageTransitionListener,
+    LeadSentProposalToOpportunityListener,
     LeadWebhookService,
     LeadWonToClientListener,
     LeadEventEmitterService,
