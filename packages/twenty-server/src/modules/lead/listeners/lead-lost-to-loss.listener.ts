@@ -72,7 +72,7 @@ export class LeadLostToLossListener {
 
         // Dedupe by name — best-effort.
         const existing = await this.dataSource.query(
-          `SELECT id FROM "${schema}"."loss" WHERE name = $1 LIMIT 1`,
+          `SELECT id FROM "${schema}"."losses" WHERE name = $1 LIMIT 1`,
           [lead.name],
         );
 
@@ -150,23 +150,23 @@ export class LeadLostToLossListener {
           placeholders.push('NOW()');
         }
 
-        const sql = `INSERT INTO "${schema}"."loss" (${insertCols.join(', ')})
+        const sql = `INSERT INTO "${schema}"."losses" (${insertCols.join(', ')})
           VALUES (${placeholders.join(', ')})`;
 
         await this.dataSource.query(sql, insertVals);
 
-        // Carry over notes/tasks if targetLossId exists on the junction tables.
+        // Carry over notes/tasks if targetLossesId exists on the junction tables.
         const noteTargetHasLoss = await this.columnExists(
           schema,
           'noteTarget',
-          'targetLossId',
+          'targetLossesId',
         );
 
         if (noteTargetHasLoss) {
           await this.dataSource.query(
             `UPDATE "${schema}"."noteTarget"
-             SET "targetLossId" = $1
-             WHERE "targetLeadId" = $2 AND "targetLossId" IS NULL`,
+             SET "targetLossesId" = $1
+             WHERE "targetLeadId" = $2 AND "targetLossesId" IS NULL`,
             [lossId, event.recordId],
           );
         }
@@ -174,14 +174,14 @@ export class LeadLostToLossListener {
         const taskTargetHasLoss = await this.columnExists(
           schema,
           'taskTarget',
-          'targetLossId',
+          'targetLossesId',
         );
 
         if (taskTargetHasLoss) {
           await this.dataSource.query(
             `UPDATE "${schema}"."taskTarget"
-             SET "targetLossId" = $1
-             WHERE "targetLeadId" = $2 AND "targetLossId" IS NULL`,
+             SET "targetLossesId" = $1
+             WHERE "targetLeadId" = $2 AND "targetLossesId" IS NULL`,
             [lossId, event.recordId],
           );
         }
@@ -205,7 +205,7 @@ export class LeadLostToLossListener {
     try {
       const rows = await this.dataSource.query(
         `SELECT column_name FROM information_schema.columns
-         WHERE table_schema = $1 AND table_name = 'loss'`,
+         WHERE table_schema = $1 AND table_name = 'losses'`,
         [schema],
       );
       const set = new Set<string>(
