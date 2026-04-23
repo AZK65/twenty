@@ -94,6 +94,8 @@ export class LeadSentProposalToOpportunityListener {
         lead.estimatedValue?.amountMicros ?? null;
 
       try {
+        // probability column was dropped from the opportunity schema even
+        // though it lingers on the entity as @deprecated — skip it.
         await this.dataSource.query(
           `INSERT INTO "${schema}"."opportunity" (
             "id",
@@ -102,7 +104,6 @@ export class LeadSentProposalToOpportunityListener {
             "stage", "position",
             "pointOfContactId",
             "companyId",
-            "probability",
             "createdAt", "updatedAt"
           ) VALUES (
             $1,
@@ -111,7 +112,6 @@ export class LeadSentProposalToOpportunityListener {
             'PROPOSAL', 0,
             $5,
             $6,
-            '',
             NOW(), NOW()
           )`,
           [
