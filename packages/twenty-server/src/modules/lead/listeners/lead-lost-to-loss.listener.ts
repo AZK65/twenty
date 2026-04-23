@@ -178,18 +178,18 @@ export class LeadLostToLossListener {
 
         await this.dataSource.query(sql, insertVals);
 
-        // Carry over notes/tasks if targetLossesId exists on the junction tables.
+        // Carry over notes/tasks if targetLossId exists on the junction tables.
         const noteTargetHasLoss = await this.columnExists(
           schema,
           'noteTarget',
-          'targetLossesId',
+          'targetLossId',
         );
 
         if (noteTargetHasLoss) {
           await this.dataSource.query(
             `UPDATE "${schema}"."noteTarget"
-             SET "targetLossesId" = $1
-             WHERE "targetLeadId" = $2 AND "targetLossesId" IS NULL`,
+             SET "targetLossId" = $1
+             WHERE "targetLeadId" = $2 AND "targetLossId" IS NULL`,
             [lossId, event.recordId],
           );
         }
@@ -197,14 +197,14 @@ export class LeadLostToLossListener {
         const taskTargetHasLoss = await this.columnExists(
           schema,
           'taskTarget',
-          'targetLossesId',
+          'targetLossId',
         );
 
         if (taskTargetHasLoss) {
           await this.dataSource.query(
             `UPDATE "${schema}"."taskTarget"
-             SET "targetLossesId" = $1
-             WHERE "targetLeadId" = $2 AND "targetLossesId" IS NULL`,
+             SET "targetLossId" = $1
+             WHERE "targetLeadId" = $2 AND "targetLossId" IS NULL`,
             [lossId, event.recordId],
           );
         }
