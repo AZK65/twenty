@@ -12,15 +12,15 @@ import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/ge
 import { type WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
 import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
-// When a lead moves to SENT_PROPOSAL stage, auto-create a matching
-// Opportunity record and carry over notes/tasks via junction target rows.
-// Mirrors the LeadWonToClient pattern.
+// When a lead moves to NEGOTIATION stage, auto-create a matching
+// Opportunity record. When it moves away from NEGOTIATION, soft-delete
+// the matching Opportunity so it disappears from the Opportunities view.
+// Mirrors the LeadWonToClient / LeadLostToLoss pattern.
 
-const SENT_PROPOSAL_STAGE_CANDIDATES = new Set([
-  'SENT_PROPOSAL',
-  'Sent Proposal',
-  'SENT PROPOSAL',
-  'sent_proposal',
+const NEGOTIATION_STAGE_CANDIDATES = new Set([
+  'NEGOTIATION',
+  'Negotiation',
+  'negotiation',
 ]);
 
 @Injectable()
@@ -46,16 +46,39 @@ export class LeadSentProposalToOpportunityListener {
       const previousStage = event.properties.before.stage;
       const newStage = event.properties.after.stage;
 
-      if (
-        !isDefined(newStage) ||
-        newStage === previousStage ||
-        !SENT_PROPOSAL_STAGE_CANDIDATES.has(newStage)
-      ) {
-        continue;
-      }
+      if (newStage === previousStage) continue;
+
+      const movedToNegotiation =
+        isDefined(newStage) && NEGOTIATION_STAGE_CANDIDATES.has(newStage);
+      const movedAwayFromNegotiation =
+        isDefined(previousStage) &&
+        NEGOTIATION_STAGE_CANDIDATES.has(previousStage) &&
+        !movedToNegotiation;
+
+      if (!movedToNegotiation && !movedAwayFromNegotiation) continue;
 
       const lead = event.properties.after;
       const schema = getWorkspaceSchemaName(payload.workspaceId);
+
+      // Moving away from NEGOTIATION → soft-delete the matching Opportunity.
+      if (movedAwayFromNegotiation) {
+        try {
+          await this.dataSource.query(
+            `UPDATE "${schema}"."opportunity"
+             SET "deletedAt" = NOW()
+             WHERE name = $1 AND "deletedAt" IS NULL`,
+            [lead.name],
+          );
+          this.logger.log(
+            `Soft-deleted Opportunity for lead ${event.recordId} (stage → ${newStage})`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to remove Opportunity for lead ${event.recordId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        continue;
+      }
 
       // Dedupe: skip if an opportunity with the same name already references
       // this lead via a noteTarget/taskTarget (best-effort — Twenty's opp

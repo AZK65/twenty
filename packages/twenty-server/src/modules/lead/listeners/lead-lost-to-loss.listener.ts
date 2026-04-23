@@ -49,16 +49,39 @@ export class LeadLostToLossListener {
       const previousStage = event.properties.before.stage;
       const newStage = event.properties.after.stage;
 
-      if (
-        !isDefined(newStage) ||
-        newStage === previousStage ||
-        !LOST_STAGE_CANDIDATES.has(newStage)
-      ) {
-        continue;
-      }
+      if (newStage === previousStage) continue;
+
+      const movedToLost =
+        isDefined(newStage) && LOST_STAGE_CANDIDATES.has(newStage);
+      const movedAwayFromLost =
+        isDefined(previousStage) &&
+        LOST_STAGE_CANDIDATES.has(previousStage) &&
+        !movedToLost;
+
+      if (!movedToLost && !movedAwayFromLost) continue;
 
       const lead = event.properties.after;
       const schema = getWorkspaceSchemaName(payload.workspaceId);
+
+      // Moving away from LOST → soft-delete the matching Loss row.
+      if (movedAwayFromLost) {
+        try {
+          await this.dataSource.query(
+            `UPDATE "${schema}"."_loss"
+             SET "deletedAt" = NOW()
+             WHERE name = $1 AND "deletedAt" IS NULL`,
+            [lead.name],
+          );
+          this.logger.log(
+            `Soft-deleted Loss row for lead ${event.recordId} (stage → ${newStage})`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Failed to remove Loss for lead ${event.recordId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        continue;
+      }
 
       try {
         const columns = await this.getLossColumns(schema);
