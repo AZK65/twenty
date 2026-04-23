@@ -79,6 +79,10 @@ export class TldvWebhookService {
     const noteMarkdown = this.buildNoteMarkdown(meeting, notes, highlights);
     const noteBlocknote = this.markdownToBlocknote(noteMarkdown);
 
+    // Stamp the note with the meeting's actual time so chronological
+    // sorting in the UI lines up with reality.
+    const meetingHappenedAt = this.parseDate(meeting.happenedAt) ?? new Date();
+
     await this.dataSource.query(
       `INSERT INTO "${schema}"."note" (
         "id", "title", "bodyV2Markdown", "bodyV2Blocknote",
@@ -87,11 +91,11 @@ export class TldvWebhookService {
         "updatedBySource", "updatedByName"
       ) VALUES (
         $1, $2, $3, $4,
-        NOW(), NOW(), 0,
+        $5, $5, 0,
         'API', 'TLDV',
         'API', 'TLDV'
       )`,
-      [noteId, noteTitle, noteMarkdown, noteBlocknote],
+      [noteId, noteTitle, noteMarkdown, noteBlocknote, meetingHappenedAt.toISOString()],
     );
 
     // Link the note to the lead via noteTarget.
@@ -312,22 +316,110 @@ export class TldvWebhookService {
   }
 
   private markdownToBlocknote(markdown: string): string {
-    // Minimal blocknote: one paragraph block per markdown line. Twenty's
-    // richtext renderer will still show the raw content via bodyV2Markdown
-    // but many clients expect bodyV2Blocknote to be parseable JSON.
-    const blocks = markdown.split('\n').map((line) => ({
+    // Light-weight markdown → BlockNote converter. Supports:
+    //  - # / ## / ### headings (levels 1-3)
+    //  - `- [ ] item`   → checkListItem
+    //  - `- item`       → bulletListItem
+    //  - `1. item`      → numberedListItem
+    //  - blank line     → skipped
+    //  - everything else → paragraph
+    // Inline [label](url) is converted to a link mark; **bold** → bold.
+    const lines = markdown.split('\n');
+    const blocks: unknown[] = [];
+
+    const makeContent = (text: string): unknown[] => {
+      const out: unknown[] = [];
+      const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let lastIdx = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRe.exec(text)) !== null) {
+        if (match.index > lastIdx) {
+          out.push({
+            type: 'text',
+            text: text.slice(lastIdx, match.index),
+            styles: {},
+          });
+        }
+        out.push({
+          type: 'link',
+          href: match[2],
+          content: [{ type: 'text', text: match[1], styles: {} }],
+        });
+        lastIdx = match.index + match[0].length;
+      }
+
+      if (lastIdx < text.length) {
+        out.push({ type: 'text', text: text.slice(lastIdx), styles: {} });
+      }
+
+      if (out.length === 0) {
+        out.push({ type: 'text', text, styles: {} });
+      }
+
+      return out;
+    };
+
+    const makeBlock = (
+      type: string,
+      content: unknown[],
+      extraProps: Record<string, unknown> = {},
+    ) => ({
       id: uuidv4(),
-      type: 'paragraph',
+      type,
       props: {
         backgroundColor: 'default',
         textColor: 'default',
         textAlignment: 'left',
+        ...extraProps,
       },
-      content: line
-        ? [{ type: 'text', text: line, styles: {} }]
-        : [],
+      content,
       children: [],
-    }));
+    });
+
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+
+      if (!line.trim()) continue;
+
+      let m: RegExpMatchArray | null;
+
+      m = line.match(/^(#{1,3})\s+(.+)$/);
+      if (m) {
+        const level = m[1].length;
+
+        blocks.push(
+          makeBlock('heading', makeContent(m[2].trim()), { level }),
+        );
+        continue;
+      }
+
+      m = line.match(/^\s*-\s+\[\s*[xX ]?\s*\]\s+(.+)$/);
+      if (m) {
+        blocks.push(makeBlock('checkListItem', makeContent(m[1].trim()), {
+          checked: false,
+        }));
+        continue;
+      }
+
+      m = line.match(/^\s*-\s+(.+)$/);
+      if (m) {
+        blocks.push(makeBlock('bulletListItem', makeContent(m[1].trim())));
+        continue;
+      }
+
+      m = line.match(/^\s*\d+\.\s+(.+)$/);
+      if (m) {
+        blocks.push(makeBlock('numberedListItem', makeContent(m[1].trim())));
+        continue;
+      }
+
+      blocks.push(makeBlock('paragraph', makeContent(line.trim())));
+    }
+
+    if (blocks.length === 0) {
+      blocks.push(makeBlock('paragraph', []));
+    }
 
     return JSON.stringify(blocks);
   }

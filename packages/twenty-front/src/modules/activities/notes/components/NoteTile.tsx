@@ -42,6 +42,11 @@ const StyledNoteTitle = styled.div`
   font-weight: ${themeCssVariables.font.weight.medium};
 `;
 
+const StyledNoteDate = styled.div`
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.xs};
+`;
+
 const StyledCardContent = styled.div`
   align-self: stretch;
   color: ${themeCssVariables.font.color.secondary};
@@ -92,6 +97,17 @@ export const NoteTile = ({
         }
       >
         <StyledNoteTitle>{note.title ?? t`Task Title`}</StyledNoteTitle>
+        {note.createdAt && (
+          <StyledNoteDate>
+            {new Date(note.createdAt).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </StyledNoteDate>
+        )}
         <StyledCardContent>{body}</StyledCardContent>
       </StyledCardDetailsContainer>
       <StyledFooter>
