@@ -98,18 +98,39 @@ export class LeadSentProposalToOpportunityListener {
         continue;
       }
 
-      // Dedupe: skip if an opportunity with the same name already references
-      // this lead via a noteTarget/taskTarget (best-effort — Twenty's opp
-      // table doesn't hold a leadId foreign key).
+      // If a soft-deleted Opportunity exists for this lead, restore it
+      // instead of inserting a duplicate. If a live one exists, skip.
       const existing = await this.dataSource.query(
-        `SELECT id FROM "${schema}"."opportunity"
-         WHERE name = $1 LIMIT 1`,
+        `SELECT id, "deletedAt" FROM "${schema}"."opportunity"
+         WHERE name = $1 ORDER BY "createdAt" DESC LIMIT 1`,
         [lead.name],
       );
 
-      if (existing.length > 0) {
+      if (existing[0]) {
+        if (existing[0].deletedAt === null) {
+          this.logger.log(
+            `Opportunity already active for lead ${event.recordId} ("${lead.name}")`,
+          );
+          continue;
+        }
+
+        await this.dataSource.query(
+          `UPDATE "${schema}"."opportunity"
+           SET "deletedAt" = NULL, "updatedAt" = NOW()
+           WHERE id = $1`,
+          [existing[0].id],
+        );
+
+        await this.eventEmitter.emitUpdated(
+          'opportunity',
+          existing[0].id,
+          { deletedAt: new Date().toISOString() },
+          { deletedAt: null },
+          payload.workspaceId,
+        );
+
         this.logger.log(
-          `Opportunity already exists for lead ${event.recordId} ("${lead.name}"), skipping`,
+          `Restored Opportunity ${existing[0].id} for lead ${event.recordId}`,
         );
         continue;
       }

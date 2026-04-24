@@ -106,15 +106,40 @@ export class LeadLostToLossListener {
           continue;
         }
 
-        // Dedupe by name — best-effort.
+        // If a soft-deleted Loss exists for this lead, restore it instead
+        // of inserting a duplicate. If a live one exists, skip.
         const existing = await this.dataSource.query(
-          `SELECT id FROM "${schema}"."_loss" WHERE name = $1 LIMIT 1`,
+          `SELECT id, "deletedAt" FROM "${schema}"."_loss"
+           WHERE name = $1 ORDER BY "createdAt" DESC LIMIT 1`,
           [lead.name],
         );
 
-        if (existing.length > 0) {
+        if (existing[0]) {
+          if (existing[0].deletedAt === null) {
+            this.logger.log(
+              `Loss already active for lead ${event.recordId} ("${lead.name}")`,
+            );
+            continue;
+          }
+
+          // Restore the soft-deleted row
+          await this.dataSource.query(
+            `UPDATE "${schema}"."_loss"
+             SET "deletedAt" = NULL, "updatedAt" = NOW()
+             WHERE id = $1`,
+            [existing[0].id],
+          );
+
+          await this.eventEmitter.emitUpdated(
+            'loss',
+            existing[0].id,
+            { deletedAt: new Date().toISOString() },
+            { deletedAt: null },
+            payload.workspaceId,
+          );
+
           this.logger.log(
-            `Loss already exists for lead ${event.recordId} ("${lead.name}")`,
+            `Restored Loss ${existing[0].id} for lead ${event.recordId}`,
           );
           continue;
         }
