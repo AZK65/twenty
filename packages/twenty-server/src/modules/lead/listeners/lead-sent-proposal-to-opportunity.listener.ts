@@ -18,9 +18,14 @@ import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead
 // the matching Opportunity so it disappears from the Opportunities view.
 // Mirrors the LeadWonToClient / LeadLostToLoss pattern.
 
-const NEGOTIATION_STAGE_CANDIDATES = new Set([
+// Both PROPOSAL and NEGOTIATION count — whichever the user picks in the
+// dropdown, an opportunity gets created / soft-deleted symmetrically.
+const OPPORTUNITY_STAGE_CANDIDATES = new Set([
+  'PROPOSAL',
   'NEGOTIATION',
+  'Proposal',
   'Negotiation',
+  'proposal',
   'negotiation',
 ]);
 
@@ -50,20 +55,20 @@ export class LeadSentProposalToOpportunityListener {
 
       if (newStage === previousStage) continue;
 
-      const movedToNegotiation =
-        isDefined(newStage) && NEGOTIATION_STAGE_CANDIDATES.has(newStage);
-      const movedAwayFromNegotiation =
+      const movedToOppStage =
+        isDefined(newStage) && OPPORTUNITY_STAGE_CANDIDATES.has(newStage);
+      const movedAwayFromOppStage =
         isDefined(previousStage) &&
-        NEGOTIATION_STAGE_CANDIDATES.has(previousStage) &&
-        !movedToNegotiation;
+        OPPORTUNITY_STAGE_CANDIDATES.has(previousStage) &&
+        !movedToOppStage;
 
-      if (!movedToNegotiation && !movedAwayFromNegotiation) continue;
+      if (!movedToOppStage && !movedAwayFromOppStage) continue;
 
       const lead = event.properties.after;
       const schema = getWorkspaceSchemaName(payload.workspaceId);
 
       // Moving away from NEGOTIATION → soft-delete the matching Opportunity.
-      if (movedAwayFromNegotiation) {
+      if (movedAwayFromOppStage) {
         try {
           const rows = await this.dataSource.query(
             `UPDATE "${schema}"."opportunity"
