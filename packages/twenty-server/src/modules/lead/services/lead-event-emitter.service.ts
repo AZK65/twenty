@@ -1,12 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { ObjectRecordCreateEvent } from 'twenty-shared/database-events';
+import {
+  ObjectRecordCreateEvent,
+  ObjectRecordUpdateEvent,
+} from 'twenty-shared/database-events';
 
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { WorkspaceEventEmitter } from 'src/engine/workspace-event-emitter/workspace-event-emitter';
 
-// Emits database events for leads created via raw SQL,
+// Emits database events for records inserted/updated via raw SQL,
 // so that the real-time subscription system picks them up.
 
 @Injectable()
@@ -23,45 +26,103 @@ export class LeadEventEmitterService {
     leadData: Record<string, unknown>,
     workspaceId: string,
   ): Promise<void> {
-    try {
-      const { flatObjectMetadataMaps } =
-        await this.workspaceCacheService.getOrRecompute(workspaceId, [
-          'flatObjectMetadataMaps',
-        ]);
+    await this.emitCreated('lead', leadId, leadData, workspaceId);
+  }
 
-      // Find the lead object metadata
-      const leadMetadata = Object.values(
-        flatObjectMetadataMaps.byUniversalIdentifier,
-      ).find(
-        (meta) => meta && 'nameSingular' in meta && meta.nameSingular === 'lead',
+  async emitCreated(
+    objectNameSingular: string,
+    recordId: string,
+    recordData: Record<string, unknown>,
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      const objectMetadata = await this.findObjectMetadata(
+        workspaceId,
+        objectNameSingular,
       );
 
-      if (!leadMetadata) {
-        this.logger.warn('Lead object metadata not found in cache');
+      if (!objectMetadata) {
+        this.logger.warn(
+          `${objectNameSingular} object metadata not found in cache`,
+        );
 
         return;
       }
 
       const event = new ObjectRecordCreateEvent();
 
-      event.recordId = leadId;
+      event.recordId = recordId;
+      event.properties = { after: { id: recordId, ...recordData } };
+
+      this.workspaceEventEmitter.emitDatabaseBatchEvent({
+        objectMetadataNameSingular: objectNameSingular,
+        action: DatabaseEventAction.CREATED,
+        events: [event],
+        objectMetadata: objectMetadata as never,
+        workspaceId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to emit CREATED event for ${objectNameSingular}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async emitUpdated(
+    objectNameSingular: string,
+    recordId: string,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      const objectMetadata = await this.findObjectMetadata(
+        workspaceId,
+        objectNameSingular,
+      );
+
+      if (!objectMetadata) return;
+
+      const event = new ObjectRecordUpdateEvent();
+
+      event.recordId = recordId;
       event.properties = {
-        after: { id: leadId, ...leadData },
+        before: { id: recordId, ...before },
+        after: { id: recordId, ...after },
+        diff: after,
+        updatedFields: Object.keys(after),
       };
 
       this.workspaceEventEmitter.emitDatabaseBatchEvent({
-        objectMetadataNameSingular: 'lead',
-        action: DatabaseEventAction.CREATED,
+        objectMetadataNameSingular: objectNameSingular,
+        action: DatabaseEventAction.UPDATED,
         events: [event],
-        objectMetadata: leadMetadata as never,
+        objectMetadata: objectMetadata as never,
         workspaceId,
       });
-
-      this.logger.log(`Emitted CREATED event for lead ${leadId}`);
     } catch (error) {
       this.logger.warn(
-        `Failed to emit lead event: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to emit UPDATED event for ${objectNameSingular}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  private async findObjectMetadata(
+    workspaceId: string,
+    nameSingular: string,
+  ) {
+    const { flatObjectMetadataMaps } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'flatObjectMetadataMaps',
+      ]);
+
+    return Object.values(
+      flatObjectMetadataMaps.byUniversalIdentifier,
+    ).find(
+      (meta) =>
+        meta &&
+        'nameSingular' in meta &&
+        meta.nameSingular === nameSingular,
+    );
   }
 }

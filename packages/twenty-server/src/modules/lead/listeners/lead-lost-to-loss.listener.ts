@@ -10,6 +10,7 @@ import { OnDatabaseBatchEvent } from 'src/engine/api/graphql/graphql-query-runne
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { type WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
+import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-emitter.service';
 import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 // When a lead moves to LOST stage, auto-create a matching Loss row.
@@ -35,6 +36,7 @@ export class LeadLostToLossListener {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: LeadEventEmitterService,
   ) {}
 
   @OnDatabaseBatchEvent('lead', DatabaseEventAction.UPDATED)
@@ -66,12 +68,23 @@ export class LeadLostToLossListener {
       // Moving away from LOST → soft-delete the matching Loss row.
       if (movedAwayFromLost) {
         try {
-          await this.dataSource.query(
+          const rows = await this.dataSource.query(
             `UPDATE "${schema}"."_loss"
              SET "deletedAt" = NOW()
-             WHERE name = $1 AND "deletedAt" IS NULL`,
+             WHERE name = $1 AND "deletedAt" IS NULL
+             RETURNING id`,
             [lead.name],
           );
+
+          for (const row of rows) {
+            await this.eventEmitter.emitUpdated(
+              'loss',
+              row.id,
+              { deletedAt: null },
+              { deletedAt: new Date().toISOString() },
+              payload.workspaceId,
+            );
+          }
           this.logger.log(
             `Soft-deleted Loss row for lead ${event.recordId} (stage → ${newStage})`,
           );
@@ -208,6 +221,14 @@ export class LeadLostToLossListener {
             [lossId, event.recordId],
           );
         }
+
+        // Emit real-time CREATED event so the Losses view updates live
+        await this.eventEmitter.emitCreated(
+          'loss',
+          lossId,
+          { name: lead.name ?? '' },
+          payload.workspaceId,
+        );
 
         this.logger.log(
           `Created loss ${lossId} ("${lead.name}") from lost lead ${event.recordId}`,

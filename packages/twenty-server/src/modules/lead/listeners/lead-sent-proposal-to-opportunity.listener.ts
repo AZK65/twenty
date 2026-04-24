@@ -10,6 +10,7 @@ import { OnDatabaseBatchEvent } from 'src/engine/api/graphql/graphql-query-runne
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { type WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
+import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-emitter.service';
 import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 // When a lead moves to NEGOTIATION stage, auto-create a matching
@@ -32,6 +33,7 @@ export class LeadSentProposalToOpportunityListener {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: LeadEventEmitterService,
   ) {}
 
   @OnDatabaseBatchEvent('lead', DatabaseEventAction.UPDATED)
@@ -63,12 +65,23 @@ export class LeadSentProposalToOpportunityListener {
       // Moving away from NEGOTIATION → soft-delete the matching Opportunity.
       if (movedAwayFromNegotiation) {
         try {
-          await this.dataSource.query(
+          const rows = await this.dataSource.query(
             `UPDATE "${schema}"."opportunity"
              SET "deletedAt" = NOW()
-             WHERE name = $1 AND "deletedAt" IS NULL`,
+             WHERE name = $1 AND "deletedAt" IS NULL
+             RETURNING id`,
             [lead.name],
           );
+
+          for (const row of rows) {
+            await this.eventEmitter.emitUpdated(
+              'opportunity',
+              row.id,
+              { deletedAt: null },
+              { deletedAt: new Date().toISOString() },
+              payload.workspaceId,
+            );
+          }
           this.logger.log(
             `Soft-deleted Opportunity for lead ${event.recordId} (stage → ${newStage})`,
           );
@@ -162,8 +175,25 @@ export class LeadSentProposalToOpportunityListener {
           [opportunityId, event.recordId],
         );
 
+        // Emit real-time CREATED event so subscribed clients pick it up
+        await this.eventEmitter.emitCreated(
+          'opportunity',
+          opportunityId,
+          {
+            name: lead.name,
+            stage: 'PROPOSAL',
+            amount: {
+              amountMicros: amountMicros,
+              currencyCode: amountCurrencyCode,
+            },
+            pointOfContactId,
+            companyId: lead.companyId ?? null,
+          },
+          payload.workspaceId,
+        );
+
         this.logger.log(
-          `Created opportunity ${opportunityId} ("${lead.name}") from lead ${event.recordId} at stage=SENT_PROPOSAL`,
+          `Created opportunity ${opportunityId} ("${lead.name}") from lead ${event.recordId} at stage=NEGOTIATION`,
         );
       } catch (error) {
         this.logger.error(
