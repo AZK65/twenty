@@ -284,17 +284,51 @@ export class CalcomWebhookService {
   }
 
   private extractPhone(booking: CalcomBookingPayload): string | null {
-    const phoneKeys = ['attendeePhoneNumber', 'phone', 'phone_number', 'phoneNumber'];
+    // 1. Cal.com top-level fields (smsReminderNumber is the built-in
+    //    "Phone number (Text notifications)" field).
+    const topLevel =
+      this.asString(
+        (booking as unknown as Record<string, unknown>).smsReminderNumber,
+      ) ??
+      this.asString(
+        (booking as unknown as Record<string, unknown>).attendeePhoneNumber,
+      );
 
-    for (const key of phoneKeys) {
+    if (topLevel) return topLevel;
+
+    // 2. Known response keys (custom fields)
+    const knownKeys = [
+      'smsReminderNumber',
+      'attendeePhoneNumber',
+      'phone',
+      'phone_number',
+      'phoneNumber',
+    ];
+
+    for (const key of knownKeys) {
       const response = booking.responses?.[key];
 
       if (!response) continue;
-
       if (typeof response === 'string') return response;
-
       if (response.value && typeof response.value === 'string') {
         return response.value;
+      }
+    }
+
+    // 3. Fallback: scan all responses for any key/label that looks phone-ish.
+    const responses = booking.responses ?? {};
+
+    for (const [key, response] of Object.entries(responses)) {
+      if (!/(phone|sms|mobile|whatsapp)/i.test(key)) continue;
+
+      if (typeof response === 'string') return response;
+      if (
+        response &&
+        typeof response === 'object' &&
+        'value' in response &&
+        typeof (response as { value?: unknown }).value === 'string'
+      ) {
+        return (response as { value: string }).value;
       }
     }
 
