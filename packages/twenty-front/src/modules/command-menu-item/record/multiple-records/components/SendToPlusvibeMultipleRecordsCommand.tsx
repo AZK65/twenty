@@ -142,6 +142,9 @@ export const SendToPlusvibeMultipleRecordsCommand = () => {
   );
   const [minAgeDays, setMinAgeDays] = useState<string>('30');
   const [maxAgeDays, setMaxAgeDays] = useState<string>('90');
+  const [countryFilter, setCountryFilter] = useState<'all' | 'us' | 'non_us'>(
+    'all',
+  );
 
   const [matchingCount, setMatchingCount] = useState<number | null>(null);
   const [sample, setSample] = useState<SampleRow[]>([]);
@@ -219,6 +222,7 @@ export const SendToPlusvibeMultipleRecordsCommand = () => {
                 companyRevenues: Array.from(selectedRevenues),
                 minAgeDays: minAgeDays ? Number(minAgeDays) : undefined,
                 maxAgeDays: maxAgeDays ? Number(maxAgeDays) : undefined,
+                countryFilter,
               },
             }),
           },
@@ -249,7 +253,7 @@ export const SendToPlusvibeMultipleRecordsCommand = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedRevenues, minAgeDays, maxAgeDays, authHeader]);
+  }, [selectedRevenues, minAgeDays, maxAgeDays, countryFilter, authHeader]);
 
   if (!isDefined(actionConfig)) {
     return null;
@@ -347,6 +351,19 @@ export const SendToPlusvibeMultipleRecordsCommand = () => {
       <StyledDivider />
 
       <StyledLabel>Filters</StyledLabel>
+
+      <StyledLabel htmlFor="plusvibe-country-filter">Country</StyledLabel>
+      <StyledSelect
+        id="plusvibe-country-filter"
+        value={countryFilter}
+        onChange={(e) =>
+          setCountryFilter(e.target.value as 'all' | 'us' | 'non_us')
+        }
+      >
+        <option value="all">All</option>
+        <option value="us">US only (phone is +1 NANP)</option>
+        <option value="non_us">Non-US only</option>
+      </StyledSelect>
 
       <StyledLabel>Skip leads added in the last N days</StyledLabel>
       <StyledInput

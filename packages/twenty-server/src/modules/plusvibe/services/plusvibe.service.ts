@@ -30,6 +30,9 @@ export type PlusvibeLeadFilters = {
   companyRevenues?: string[];
   minAgeDays?: number;
   maxAgeDays?: number;
+  // 'all' (default) | 'us' (phone is NANP +1) | 'non_us' (phone exists but
+  // is not NANP). Leads without a phone are included in 'all' and 'non_us'.
+  countryFilter?: 'all' | 'us' | 'non_us';
 };
 
 type PushResult = {
@@ -142,6 +145,24 @@ export class PlusvibeService {
       params.push(filters.minAgeDays);
       clauses.push(
         `"createdAt" <= NOW() - ($${params.length}::int * INTERVAL '1 day')`,
+      );
+    }
+
+    if (filters.countryFilter === 'us') {
+      // Phone normalizes to NANP +1 (1[2-9]\d{9})
+      clauses.push(
+        `"phonesPrimaryPhoneNumber" IS NOT NULL AND "phonesPrimaryPhoneNumber" != ''
+         AND regexp_replace("phonesPrimaryPhoneNumber", '[^0-9]', '', 'g') ~ '^1[2-9][0-9]{9}$'`,
+      );
+    } else if (filters.countryFilter === 'non_us') {
+      // Has a phone, but doesn't normalize to NANP. Leads with no phone
+      // pass through too (international leads sometimes lack phones).
+      clauses.push(
+        `(
+          "phonesPrimaryPhoneNumber" IS NULL
+          OR "phonesPrimaryPhoneNumber" = ''
+          OR regexp_replace("phonesPrimaryPhoneNumber", '[^0-9]', '', 'g') !~ '^1[2-9][0-9]{9}$'
+        )`,
       );
     }
 

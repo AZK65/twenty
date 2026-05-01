@@ -23,6 +23,7 @@ type SendLeadsBody = {
     companyRevenues?: string[];
     minAgeDays?: number;
     maxAgeDays?: number;
+    countryFilter?: 'all' | 'us' | 'non_us';
   };
 };
 
@@ -31,6 +32,7 @@ type PreviewBody = {
     companyRevenues?: string[];
     minAgeDays?: number;
     maxAgeDays?: number;
+    countryFilter?: 'all' | 'us' | 'non_us';
   };
 };
 
