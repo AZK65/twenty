@@ -46,12 +46,12 @@ const LOSS_IDENTITY = new Set(['name']);
 
 // Lead-only columns that don't make sense to push to Client/Loss
 // (stage etc would be confusing/wrong on those objects).
+// Note: assignedToId DOES sync — sales rep should follow lead → client.
 const SKIP_COLUMNS = new Set([
   'stage',
   'enrichmentStatus',
   'priority',
   'nextFollowUpDate',
-  'assignedToId',
   'ownerId',
 ]);
 
