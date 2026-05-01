@@ -6,6 +6,7 @@ import { FavoriteFolderModule } from 'src/modules/favorite-folder/favorite-folde
 import { FavoriteModule } from 'src/modules/favorite/favorite.module';
 import { JustcallModule } from 'src/modules/justcall/justcall.module';
 import { LeadModule } from 'src/modules/lead/lead.module';
+import { PlusvibeModule } from 'src/modules/plusvibe/plusvibe.module';
 import { TldvModule } from 'src/modules/tldv/tldv.module';
 import { MessagingModule } from 'src/modules/messaging/messaging.module';
 import { WorkflowModule } from 'src/modules/workflow/workflow.module';
@@ -21,6 +22,7 @@ import { WorkspaceMemberModule } from 'src/modules/workspace-member/workspace-me
     FavoriteModule,
     LeadModule,
     JustcallModule,
+    PlusvibeModule,
     TldvModule,
     WorkspaceMemberModule,
   ],

@@ -5,6 +5,7 @@ import { ExportMultipleRecordsCommand } from '@/command-menu-item/record/multipl
 import { MergeMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/MergeMultipleRecordsCommand';
 import { RestoreMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/RestoreMultipleRecordsCommand';
 import { SendToJustcallMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/SendToJustcallMultipleRecordsCommand';
+import { SendToPlusvibeMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/SendToPlusvibeMultipleRecordsCommand';
 import { UpdateMultipleRecordsCommand } from '@/command-menu-item/record/multiple-records/components/UpdateMultipleRecordsCommand';
 import { MultipleRecordsCommandKeys } from '@/command-menu-item/record/multiple-records/types/MultipleRecordsCommandKeys';
 import { CreateNewIndexRecordNoSelectionRecordCommand } from '@/command-menu-item/record/no-selection/components/CreateNewIndexRecordNoSelectionRecordCommand';
@@ -55,6 +56,7 @@ import {
   IconHeartOff,
   IconLayout,
   IconLayoutDashboard,
+  IconMail,
   IconPencil,
   IconPhone,
   IconPlus,
@@ -439,6 +441,25 @@ export const DEFAULT_RECORD_COMMAND_MENU_ITEMS_CONFIG: Record<
       numberOfSelectedRecords <= MUTATION_MAX_MERGE_RECORDS,
     availableOn: [CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION],
     component: <MergeMultipleRecordsCommand />,
+  },
+  [MultipleRecordsCommandKeys.SEND_TO_PLUSVIBE]: {
+    type: CommandMenuItemType.Standard,
+    scope: CommandMenuItemScope.Object,
+    key: MultipleRecordsCommandKeys.SEND_TO_PLUSVIBE,
+    label: msg`Send to PlusVibe`,
+    shortLabel: msg`PlusVibe`,
+    position: 15.6,
+    Icon: IconMail,
+    accent: 'default',
+    isPinned: true,
+    shouldBeRegistered: ({ objectMetadataItem }) =>
+      objectMetadataItem?.nameSingular === 'lead',
+    availableOn: [
+      CommandMenuItemViewType.INDEX_PAGE_NO_SELECTION,
+      CommandMenuItemViewType.INDEX_PAGE_SINGLE_RECORD_SELECTION,
+      CommandMenuItemViewType.INDEX_PAGE_BULK_SELECTION,
+    ],
+    component: <SendToPlusvibeMultipleRecordsCommand />,
   },
   [MultipleRecordsCommandKeys.SEND_TO_JUSTCALL]: {
     type: CommandMenuItemType.Standard,

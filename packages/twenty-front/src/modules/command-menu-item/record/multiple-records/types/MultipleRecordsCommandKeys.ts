@@ -6,4 +6,5 @@ export enum MultipleRecordsCommandKeys {
   DESTROY = 'destroy-multiple-records',
   RESTORE = 'restore-multiple-records',
   SEND_TO_JUSTCALL = 'send-to-justcall-multiple-records',
+  SEND_TO_PLUSVIBE = 'send-to-plusvibe-multiple-records',
 }
