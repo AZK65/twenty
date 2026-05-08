@@ -23,6 +23,9 @@ import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-em
 import { RenWebhookService } from 'src/modules/lead/services/ren-webhook.service';
 import { SendblueService } from 'src/modules/lead/services/sendblue.service';
 import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.service';
+import { TelegramFollowupService } from 'src/modules/lead/services/telegram-followup.service';
+import { TelegramLeadOpsService } from 'src/modules/lead/services/telegram-lead-ops.service';
+import { TelegramQAService } from 'src/modules/lead/services/telegram-qa.service';
 
 @Module({
   imports: [WorkspaceCacheModule],
@@ -48,6 +51,9 @@ import { TelegramBotService } from 'src/modules/lead/services/telegram-bot.servi
     RenWebhookService,
     SendblueService,
     TelegramBotService,
+    TelegramFollowupService,
+    TelegramLeadOpsService,
+    TelegramQAService,
     WebhookAuthGuard,
   ],
   exports: [

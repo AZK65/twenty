@@ -30954,6 +30954,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"chrono-node@npm:^2.9.1":
+  version: 2.9.1
+  resolution: "chrono-node@npm:2.9.1"
+  checksum: 10c0/2408e4a404ea3e7e8226daae75cdbc4621bc66065d596574440d0f81a7c456c166ca212c9e1c329e653c716300289498794fece2102f9365bfd33bd1a4b24473
+  languageName: node
+  linkType: hard
+
 "ci-info@npm:^2.0.0":
   version: 2.0.0
   resolution: "ci-info@npm:2.0.0"
@@ -56765,6 +56772,7 @@ __metadata:
     cache-manager: "npm:^5.4.0"
     cache-manager-redis-yet: "npm:^4.1.2"
     chalk: "npm:4.1.2"
+    chrono-node: "npm:^2.9.1"
     class-transformer: "npm:0.5.1"
     class-validator: "npm:0.14.0"
     class-validator-jsonschema: "npm:^5.0.2"
