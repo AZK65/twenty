@@ -43,9 +43,7 @@ export class LeadSentProposalToOpportunityListener {
 
   @OnDatabaseBatchEvent('lead', DatabaseEventAction.UPDATED)
   async handleLeadUpdated(
-    payload: WorkspaceEventBatch<
-      ObjectRecordUpdateEvent<LeadWorkspaceEntity>
-    >,
+    payload: WorkspaceEventBatch<ObjectRecordUpdateEvent<LeadWorkspaceEntity>>,
   ) {
     if (!isDefined(payload.workspaceId)) return;
 
@@ -106,31 +104,51 @@ export class LeadSentProposalToOpportunityListener {
         [lead.name],
       );
 
+      // Map lead stage to opportunity stage value (uppercase canonical)
+      const oppStage = (newStage ?? 'PROPOSAL').toUpperCase();
+
       if (existing[0]) {
         if (existing[0].deletedAt === null) {
+          // Already active — sync stage so PROPOSAL ↔ NEGOTIATION transitions
+          // on the lead are reflected on the opportunity.
+          await this.dataSource.query(
+            `UPDATE "${schema}"."opportunity"
+             SET stage = $1, "updatedAt" = NOW()
+             WHERE id = $2 AND stage <> $1`,
+            [oppStage, existing[0].id],
+          );
+
+          await this.eventEmitter.emitUpdated(
+            'opportunity',
+            existing[0].id,
+            {},
+            { stage: oppStage },
+            payload.workspaceId,
+          );
+
           this.logger.log(
-            `Opportunity already active for lead ${event.recordId} ("${lead.name}")`,
+            `Updated Opportunity ${existing[0].id} stage → ${oppStage} for lead ${event.recordId}`,
           );
           continue;
         }
 
         await this.dataSource.query(
           `UPDATE "${schema}"."opportunity"
-           SET "deletedAt" = NULL, "updatedAt" = NOW()
-           WHERE id = $1`,
-          [existing[0].id],
+           SET "deletedAt" = NULL, stage = $1, "updatedAt" = NOW()
+           WHERE id = $2`,
+          [oppStage, existing[0].id],
         );
 
         await this.eventEmitter.emitUpdated(
           'opportunity',
           existing[0].id,
           { deletedAt: new Date().toISOString() },
-          { deletedAt: null },
+          { deletedAt: null, stage: oppStage },
           payload.workspaceId,
         );
 
         this.logger.log(
-          `Restored Opportunity ${existing[0].id} for lead ${event.recordId}`,
+          `Restored Opportunity ${existing[0].id} (stage=${oppStage}) for lead ${event.recordId}`,
         );
         continue;
       }
@@ -150,10 +168,8 @@ export class LeadSentProposalToOpportunityListener {
       }
 
       const opportunityId = uuidv4();
-      const amountCurrencyCode =
-        lead.estimatedValue?.currencyCode ?? 'USD';
-      const amountMicros =
-        lead.estimatedValue?.amountMicros ?? null;
+      const amountCurrencyCode = lead.estimatedValue?.currencyCode ?? 'USD';
+      const amountMicros = lead.estimatedValue?.amountMicros ?? null;
 
       try {
         // probability column was dropped from the opportunity schema even
@@ -171,7 +187,7 @@ export class LeadSentProposalToOpportunityListener {
             $1,
             $2,
             $3, $4,
-            'PROPOSAL', 0,
+            $7, 0,
             $5,
             $6,
             NOW(), NOW()
@@ -183,6 +199,7 @@ export class LeadSentProposalToOpportunityListener {
             amountCurrencyCode,
             pointOfContactId,
             lead.companyId ?? null,
+            oppStage,
           ],
         );
 
@@ -207,7 +224,7 @@ export class LeadSentProposalToOpportunityListener {
           opportunityId,
           {
             name: lead.name,
-            stage: 'PROPOSAL',
+            stage: oppStage,
             amount: {
               amountMicros: amountMicros,
               currencyCode: amountCurrencyCode,
@@ -219,7 +236,7 @@ export class LeadSentProposalToOpportunityListener {
         );
 
         this.logger.log(
-          `Created opportunity ${opportunityId} ("${lead.name}") from lead ${event.recordId} at stage=NEGOTIATION`,
+          `Created opportunity ${opportunityId} ("${lead.name}") from lead ${event.recordId} at stage=${oppStage}`,
         );
       } catch (error) {
         this.logger.error(
