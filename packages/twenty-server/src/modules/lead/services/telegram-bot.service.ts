@@ -25,7 +25,12 @@ const SUMMARY_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 type TelegramMessage = {
   message_id: number;
   chat: { id: number; title?: string; type: string };
-  from?: { id: number; first_name: string; last_name?: string; username?: string };
+  from?: {
+    id: number;
+    first_name: string;
+    last_name?: string;
+    username?: string;
+  };
   text?: string;
   date: number;
 };
@@ -60,6 +65,8 @@ export class TelegramBotService {
       await this.handleSummaryCommand(message, schema);
     } else if (text.startsWith('/help') || text.startsWith('/start')) {
       await this.handleHelpCommand(message);
+    } else if (text.startsWith('/myid')) {
+      await this.handleMyIdCommand(message);
     } else {
       // Auto-link group to lead if not linked yet
       await this.tryAutoLink(message, schema);
@@ -70,7 +77,10 @@ export class TelegramBotService {
 
   // --- COMMANDS ---
 
-  private async handleLeadCommand(message: TelegramMessage, schema: string): Promise<void> {
+  private async handleLeadCommand(
+    message: TelegramMessage,
+    schema: string,
+  ): Promise<void> {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     if (!botToken) return;
@@ -78,8 +88,10 @@ export class TelegramBotService {
     const text = message.text!.replace(/^\/lead(@\w+)?\s*/, '').trim();
 
     if (!text) {
-      await this.notifyAdmin(botToken,
-        '⚠️ /lead used without details. Usage: /lead Name email phone');
+      await this.notifyAdmin(
+        botToken,
+        '⚠️ /lead used without details. Usage: /lead Name email phone',
+      );
 
       return;
     }
@@ -96,8 +108,7 @@ export class TelegramBotService {
     name = name.trim().replace(/\s+/g, ' ');
 
     if (!name) {
-      await this.notifyAdmin(botToken,
-        '⚠️ /lead needs at least a name.');
+      await this.notifyAdmin(botToken, '⚠️ /lead needs at least a name.');
 
       return;
     }
@@ -106,20 +117,34 @@ export class TelegramBotService {
       const leadId = await this.createLead(name, email, phone, message, schema);
 
       // Auto-link this group to the lead
-      await this.linkGroupToLead(message.chat.id, message.chat.title ?? '', leadId, schema);
+      await this.linkGroupToLead(
+        message.chat.id,
+        message.chat.title ?? '',
+        leadId,
+        schema,
+      );
 
-      await this.notifyAdmin(botToken,
-        `✅ Lead added: *${name}*\nFrom group: ${message.chat.title ?? 'DM'}`);
+      await this.notifyAdmin(
+        botToken,
+        `✅ Lead added: *${name}*\nFrom group: ${message.chat.title ?? 'DM'}`,
+      );
 
       this.logger.log(`Telegram bot created lead "${name}" (${leadId})`);
     } catch (error) {
-      this.logger.error(`Failed to create lead from Telegram: ${error instanceof Error ? error.message : String(error)}`);
-      await this.notifyAdmin(botToken,
-        `❌ Failed to create lead from group: ${message.chat.title ?? 'DM'}`);
+      this.logger.error(
+        `Failed to create lead from Telegram: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await this.notifyAdmin(
+        botToken,
+        `❌ Failed to create lead from group: ${message.chat.title ?? 'DM'}`,
+      );
     }
   }
 
-  private async handleLinkCommand(message: TelegramMessage, schema: string): Promise<void> {
+  private async handleLinkCommand(
+    message: TelegramMessage,
+    schema: string,
+  ): Promise<void> {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     if (!botToken) return;
@@ -148,9 +173,12 @@ export class TelegramBotService {
       );
 
       if (result[0]) {
-        await this.sendReply(botToken, message.chat.id,
+        await this.sendReply(
+          botToken,
+          message.chat.id,
           '✅ This group is already linked to a lead.',
-          message.message_id);
+          message.message_id,
+        );
 
         return;
       }
@@ -167,34 +195,72 @@ export class TelegramBotService {
     }
 
     if (!leadId) {
-      await this.notifyAdmin(botToken,
-        `⚠️ No lead found to link group: ${message.chat.title ?? 'Unknown'}`);
+      await this.notifyAdmin(
+        botToken,
+        `⚠️ No lead found to link group: ${message.chat.title ?? 'Unknown'}`,
+      );
 
       return;
     }
 
-    await this.linkGroupToLead(message.chat.id, message.chat.title ?? '', leadId, schema);
+    await this.linkGroupToLead(
+      message.chat.id,
+      message.chat.title ?? '',
+      leadId,
+      schema,
+    );
 
-    await this.notifyAdmin(botToken,
-      `🔗 Group linked: *${message.chat.title ?? 'Unknown'}* → lead: *${leadName}*`);
+    await this.notifyAdmin(
+      botToken,
+      `🔗 Group linked: *${message.chat.title ?? 'Unknown'}* → lead: *${leadName}*`,
+    );
   }
 
-  private async handleSummaryCommand(message: TelegramMessage, schema: string): Promise<void> {
+  private async handleSummaryCommand(
+    message: TelegramMessage,
+    schema: string,
+  ): Promise<void> {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     if (!botToken) return;
 
     const workspaceId = this.getWorkspaceId();
 
-    const summary = await this.generateAndSaveSummary(message.chat.id, schema, workspaceId);
+    const summary = await this.generateAndSaveSummary(
+      message.chat.id,
+      schema,
+      workspaceId,
+    );
 
     if (summary) {
-      await this.notifyAdmin(botToken,
-        `📋 *Summary updated* for ${message.chat.title ?? 'group'}\n\n${summary}`);
+      await this.notifyAdmin(
+        botToken,
+        `📋 *Summary updated* for ${message.chat.title ?? 'group'}\n\n${summary}`,
+      );
     } else {
-      await this.notifyAdmin(botToken,
-        `⚠️ No new messages to summarize for ${message.chat.title ?? 'group'}`);
+      await this.notifyAdmin(
+        botToken,
+        `⚠️ No new messages to summarize for ${message.chat.title ?? 'group'}`,
+      );
     }
+  }
+
+  private async handleMyIdCommand(message: TelegramMessage): Promise<void> {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+    if (!botToken) return;
+
+    const userName =
+      [message.from?.first_name, message.from?.last_name]
+        .filter(Boolean)
+        .join(' ') || 'unknown';
+
+    await this.sendReply(
+      botToken,
+      message.chat.id,
+      `🆔 *Your chat ID:* \`${message.chat.id}\`\n*User:* ${userName}\n\nSend this to your admin to get added to CRM notifications.`,
+      message.message_id,
+    );
   }
 
   private async handleHelpCommand(message: TelegramMessage): Promise<void> {
@@ -202,19 +268,25 @@ export class TelegramBotService {
 
     if (!botToken) return;
 
-    await this.sendReply(botToken, message.chat.id,
+    await this.sendReply(
+      botToken,
+      message.chat.id,
       '🤖 *Apptics Sales CRM Bot*\n\n' +
-      '*Commands:*\n' +
-      '/lead Name email phone — Add a lead\n' +
-      '/link email — Link this group to a lead\n' +
-      '/summary — Generate conversation summary\n\n' +
-      'All messages are auto-summarized every 30 min and saved to the CRM.',
-      message.message_id);
+        '*Commands:*\n' +
+        '/lead Name email phone — Add a lead\n' +
+        '/link email — Link this group to a lead\n' +
+        '/summary — Generate conversation summary\n\n' +
+        'All messages are auto-summarized every 30 min and saved to the CRM.',
+      message.message_id,
+    );
   }
 
   // --- AUTO-LINKING ---
 
-  private async tryAutoLink(message: TelegramMessage, schema: string): Promise<void> {
+  private async tryAutoLink(
+    message: TelegramMessage,
+    schema: string,
+  ): Promise<void> {
     if (!message.chat.title || message.chat.type === 'private') return;
 
     // Check if already linked
@@ -243,7 +315,12 @@ export class TelegramBotService {
       );
 
       if (results[0]) {
-        await this.linkGroupToLead(message.chat.id, groupName, results[0].id, schema);
+        await this.linkGroupToLead(
+          message.chat.id,
+          groupName,
+          results[0].id,
+          schema,
+        );
 
         this.logger.log(
           `Auto-linked group "${groupName}" to lead "${results[0].name}" (matched: "${name}")`,
@@ -268,9 +345,16 @@ export class TelegramBotService {
       // Skip known non-name parts
       const lower = part.toLowerCase();
 
-      if (lower.includes('apptics') || lower.includes('crm') || lower.includes('onboarding')
-        || lower.includes('sales') || lower.includes('support') || lower.includes('team')
-        || lower.includes('bot') || lower.includes('group')) {
+      if (
+        lower.includes('apptics') ||
+        lower.includes('crm') ||
+        lower.includes('onboarding') ||
+        lower.includes('sales') ||
+        lower.includes('support') ||
+        lower.includes('team') ||
+        lower.includes('bot') ||
+        lower.includes('group')
+      ) {
         continue;
       }
 
@@ -289,8 +373,14 @@ export class TelegramBotService {
 
   // --- MESSAGE BUFFERING ---
 
-  private async bufferMessage(message: TelegramMessage, schema: string): Promise<void> {
-    const senderName = [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || 'Unknown';
+  private async bufferMessage(
+    message: TelegramMessage,
+    schema: string,
+  ): Promise<void> {
+    const senderName =
+      [message.from?.first_name, message.from?.last_name]
+        .filter(Boolean)
+        .join(' ') || 'Unknown';
 
     await this.dataSource.query(
       `INSERT INTO "${schema}"."telegramMessage" ("chatId", "chatTitle", "senderName", "senderUsername", "messageText", "createdAt")
@@ -321,7 +411,9 @@ export class TelegramBotService {
         await this.generateAndSaveSummary(chatId, schema, workspaceId);
         this.logger.log(`Auto-summary completed for chat ${chatId}`);
       } catch (error) {
-        this.logger.error(`Auto-summary failed for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Auto-summary failed for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }, SUMMARY_INTERVAL_MS);
 
@@ -366,13 +458,21 @@ export class TelegramBotService {
     const leadName = leadResult[0]?.name ?? '';
 
     // Build conversation text
-    const conversation = messages.map((m: { senderName: string; messageText: string; createdAt: string }) => {
-      const time = new Date(m.createdAt).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
-      });
+    const conversation = messages
+      .map(
+        (m: { senderName: string; messageText: string; createdAt: string }) => {
+          const time = new Date(m.createdAt).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          });
 
-      return `[${time}] ${m.senderName}: ${m.messageText}`;
-    }).join('\n');
+          return `[${time}] ${m.senderName}: ${m.messageText}`;
+        },
+      )
+      .join('\n');
 
     // Generate summary with AI
     const summary = await this.callAI(leadName, existingSummary, conversation);
@@ -386,7 +486,12 @@ export class TelegramBotService {
     );
 
     // Add timeline entry
-    await this.logToTimeline(leadId, workspaceId, 'Conversation summary updated', summary);
+    await this.logToTimeline(
+      leadId,
+      workspaceId,
+      'Conversation summary updated',
+      summary,
+    );
 
     // Mark messages as summarized
     await this.dataSource.query(
@@ -403,7 +508,11 @@ export class TelegramBotService {
     return summary;
   }
 
-  private async callAI(leadName: string, existingSummary: string, newConversation: string): Promise<string | null> {
+  private async callAI(
+    leadName: string,
+    existingSummary: string,
+    newConversation: string,
+  ): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
@@ -447,7 +556,7 @@ Write the summary:`;
       const response = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -458,13 +567,15 @@ Write the summary:`;
         signal: AbortSignal.timeout(30_000),
       });
 
-      const result = await response.json() as {
+      const result = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
 
       return result.choices?.[0]?.message?.content ?? null;
     } catch (error) {
-      this.logger.error(`AI summary failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `AI summary failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
 
       return null;
     }
@@ -509,7 +620,11 @@ Write the summary:`;
         name,
         email,
         phone,
-        JSON.stringify({ source: 'Telegram', chat: chatTitle, addedBy: telegramUser?.username ?? telegramUser?.first_name }),
+        JSON.stringify({
+          source: 'Telegram',
+          chat: chatTitle,
+          addedBy: telegramUser?.username ?? telegramUser?.first_name,
+        }),
         needs,
       ],
     );
@@ -517,7 +632,12 @@ Write the summary:`;
     return leadId;
   }
 
-  private async linkGroupToLead(chatId: number, chatTitle: string, leadId: string, schema: string): Promise<void> {
+  private async linkGroupToLead(
+    chatId: number,
+    chatTitle: string,
+    leadId: string,
+    schema: string,
+  ): Promise<void> {
     await this.dataSource.query(
       `INSERT INTO "${schema}"."telegramGroupLead" ("chatId", "chatTitle", "leadId")
        VALUES ($1, $2, $3)
@@ -563,32 +683,53 @@ Write the summary:`;
         ],
       );
     } catch (error) {
-      this.logger.warn(`Failed to log timeline: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Failed to log timeline: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
   private async notifyAdmin(botToken: string, text: string): Promise<void> {
-    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    // Supports a single chat ID or comma-separated list:
+    //   TELEGRAM_ADMIN_CHAT_ID=1637955920
+    //   TELEGRAM_ADMIN_CHAT_ID=1637955920,9876543210
+    const raw = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
-    if (!adminChatId) return;
+    if (!raw) return;
 
-    try {
-      await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: adminChatId,
-          text,
-          parse_mode: 'Markdown',
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch (error) {
-      this.logger.warn(`Failed to notify admin: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    const chatIds = raw
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+
+    await Promise.all(
+      chatIds.map(async (chatId) => {
+        try {
+          await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text,
+              parse_mode: 'Markdown',
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Failed to notify admin ${chatId}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }),
+    );
   }
 
-  private async sendReply(botToken: string, chatId: number, text: string, replyToMessageId: number): Promise<void> {
+  private async sendReply(
+    botToken: string,
+    chatId: number,
+    text: string,
+    replyToMessageId: number,
+  ): Promise<void> {
     try {
       await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
         method: 'POST',
@@ -602,7 +743,9 @@ Write the summary:`;
         signal: AbortSignal.timeout(10_000),
       });
     } catch (error) {
-      this.logger.warn(`Failed to send Telegram reply: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Failed to send Telegram reply: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -611,6 +754,8 @@ Write the summary:`;
   }
 
   private getWorkspaceId(): string {
-    return process.env.DEFAULT_WORKSPACE_ID ?? 'dd98a860-76dd-4b80-b136-41d41be170b3';
+    return (
+      process.env.DEFAULT_WORKSPACE_ID ?? 'dd98a860-76dd-4b80-b136-41d41be170b3'
+    );
   }
 }
