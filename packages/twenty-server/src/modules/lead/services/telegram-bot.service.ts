@@ -63,6 +63,10 @@ export class TelegramBotService {
     const text = message.text.trim();
     const schema = this.getSchema();
 
+    this.logger.log(
+      `Webhook IN chat=${message.chat.id} type=${message.chat.type} from=${message.from?.id ?? '?'} text="${text.slice(0, 80)}"`,
+    );
+
     if (text.startsWith('/lead')) {
       await this.handleLeadCommand(message, schema);
     } else if (text.startsWith('/link')) {
@@ -1072,6 +1076,10 @@ export class TelegramBotService {
 
     if (!botToken) return;
 
+    this.logger.log(
+      `/ask invoked by user=${message.from?.id ?? '?'} chat=${message.chat.id} adminCheck=${this.isAdminUser(message)}`,
+    );
+
     if (!this.isAdminUser(message)) {
       await this.sendReply(
         botToken,
@@ -1118,7 +1126,15 @@ export class TelegramBotService {
       // ignore
     }
 
+    this.logger.log(
+      `/ask question="${question.slice(0, 100)}" schema=${schema}`,
+    );
+
     const answer = await this.qaService.answer(question, schema);
+
+    this.logger.log(
+      `/ask answer length=${answer?.length ?? 0} preview="${(answer ?? '').slice(0, 100)}"`,
+    );
 
     await this.sendReply(botToken, message.chat.id, answer, message.message_id);
   }
