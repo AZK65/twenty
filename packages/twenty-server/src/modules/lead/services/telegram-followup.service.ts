@@ -45,6 +45,13 @@ export class TelegramFollowupService implements OnModuleInit {
         this.pollDueFollowups().catch((e) => this.logger.warn(`poll: ${e}`)),
       POLL_INTERVAL_MS,
     );
+
+    // .unref() so the timer never keeps the Node event loop alive on its own.
+    // Critical: the entrypoint runs `yarn command:prod upgrade` which loads
+    // this module, fires onModuleInit, completes, and tries to exit. Without
+    // unref, the interval would hold the process open forever and the deploy
+    // would hang.
+    this.pollTimer.unref?.();
   }
 
   // Schema is per-workspace, so we can't pre-create at boot. Bootstrap
