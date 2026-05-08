@@ -93,7 +93,7 @@ export class TelegramBotService {
       await this.handleAskCommand(message, schema);
     } else if (message.chat.type === 'private') {
       // In DMs from admins, treat any non-command message as a Q&A question.
-      if (this.isAdmin(message.chat.id)) {
+      if (this.isAdminUser(message)) {
         await this.handleAskCommand(message, schema, /* alreadyTrimmed */ true);
       }
     } else {
@@ -104,15 +104,25 @@ export class TelegramBotService {
     }
   }
 
-  private isAdmin(chatId: number): boolean {
+  // Admin allowlist holds Telegram USER ids (from `/myid`). In a DM, chat.id
+  // equals the user's id; in a group, chat.id is the negative group id and
+  // we must use the sender's `from.id` instead.
+  private isAdminUser(message: TelegramMessage): boolean {
     const raw = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
     if (!raw) return false;
 
-    return raw
+    const allow = raw
       .split(',')
       .map((id) => id.trim())
-      .includes(String(chatId));
+      .filter(Boolean);
+
+    const candidates: string[] = [];
+
+    if (message.from?.id != null) candidates.push(String(message.from.id));
+    candidates.push(String(message.chat.id));
+
+    return candidates.some((id) => allow.includes(id));
   }
 
   // --- COMMANDS ---
@@ -1062,7 +1072,7 @@ export class TelegramBotService {
 
     if (!botToken) return;
 
-    if (!this.isAdmin(message.chat.id)) {
+    if (!this.isAdminUser(message)) {
       await this.sendReply(
         botToken,
         message.chat.id,
