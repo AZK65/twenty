@@ -1492,27 +1492,62 @@ Write the summary:`;
     );
   }
 
+  // Telegram's legacy "Markdown" parse_mode is strict and rejects messages
+  // containing **double-asterisks**, lone underscores in tokens like
+  // MEETING_SCHEDULED, parentheses inside bold, etc. The LLM regularly emits
+  // those, which used to cause silent 400s. We try Markdown first and on
+  // failure retry with no parse_mode so the user always gets a reply.
   private async sendReply(
     botToken: string,
     chatId: number,
     text: string,
     replyToMessageId: number,
   ): Promise<void> {
-    try {
-      await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          parse_mode: 'Markdown',
-          reply_to_message_id: replyToMessageId,
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-    } catch (error) {
+    const send = async (
+      parseMode: 'Markdown' | null,
+    ): Promise<Response | null> => {
+      const body: Record<string, unknown> = {
+        chat_id: chatId,
+        text,
+        reply_to_message_id: replyToMessageId,
+      };
+
+      if (parseMode) body.parse_mode = parseMode;
+
+      try {
+        return await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch (error) {
+        this.logger.warn(
+          `sendReply fetch error (parse_mode=${parseMode ?? 'none'}): ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return null;
+      }
+    };
+
+    const first = await send('Markdown');
+
+    if (first?.ok) return;
+
+    if (first) {
+      const errBody = await first.text().catch(() => '');
+
       this.logger.warn(
-        `Failed to send Telegram reply: ${error instanceof Error ? error.message : String(error)}`,
+        `sendReply Markdown failed (${first.status}): ${errBody.slice(0, 200)} — retrying as plain text`,
+      );
+    }
+
+    const retry = await send(null);
+
+    if (!retry?.ok) {
+      const errBody = retry ? await retry.text().catch(() => '') : '';
+
+      this.logger.warn(
+        `sendReply plain-text fallback also failed: ${retry?.status ?? 'no response'} ${errBody.slice(0, 200)}`,
       );
     }
   }
