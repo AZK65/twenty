@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import {
   ObjectRecordCreateEvent,
+  ObjectRecordDeleteEvent,
+  ObjectRecordRestoreEvent,
   ObjectRecordUpdateEvent,
 } from 'twenty-shared/database-events';
 
@@ -107,22 +109,99 @@ export class LeadEventEmitterService {
     }
   }
 
-  private async findObjectMetadata(
+  async emitDeleted(
+    objectNameSingular: string,
+    recordId: string,
+    recordData: Record<string, unknown>,
     workspaceId: string,
-    nameSingular: string,
-  ) {
+  ): Promise<void> {
+    try {
+      const objectMetadata = await this.findObjectMetadata(
+        workspaceId,
+        objectNameSingular,
+      );
+
+      if (!objectMetadata) return;
+
+      const event = new ObjectRecordDeleteEvent();
+
+      event.recordId = recordId;
+      event.properties = {
+        before: { id: recordId, ...recordData, deletedAt: null } as never,
+        after: {
+          id: recordId,
+          ...recordData,
+          deletedAt: new Date().toISOString(),
+        } as never,
+        updatedFields: ['deletedAt'],
+        diff: { deletedAt: { before: null, after: new Date().toISOString() } },
+      };
+
+      this.workspaceEventEmitter.emitDatabaseBatchEvent({
+        objectMetadataNameSingular: objectNameSingular,
+        action: DatabaseEventAction.DELETED,
+        events: [event],
+        objectMetadata: objectMetadata as never,
+        workspaceId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to emit DELETED event for ${objectNameSingular}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async emitRestored(
+    objectNameSingular: string,
+    recordId: string,
+    recordData: Record<string, unknown>,
+    workspaceId: string,
+  ): Promise<void> {
+    try {
+      const objectMetadata = await this.findObjectMetadata(
+        workspaceId,
+        objectNameSingular,
+      );
+
+      if (!objectMetadata) return;
+
+      const event = new ObjectRecordRestoreEvent();
+
+      event.recordId = recordId;
+      event.properties = {
+        before: {
+          id: recordId,
+          ...recordData,
+          deletedAt: new Date().toISOString(),
+        } as never,
+        after: { id: recordId, ...recordData, deletedAt: null } as never,
+        updatedFields: ['deletedAt'],
+        diff: { deletedAt: { before: new Date().toISOString(), after: null } },
+      };
+
+      this.workspaceEventEmitter.emitDatabaseBatchEvent({
+        objectMetadataNameSingular: objectNameSingular,
+        action: DatabaseEventAction.RESTORED,
+        events: [event],
+        objectMetadata: objectMetadata as never,
+        workspaceId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to emit RESTORED event for ${objectNameSingular}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async findObjectMetadata(workspaceId: string, nameSingular: string) {
     const { flatObjectMetadataMaps } =
       await this.workspaceCacheService.getOrRecompute(workspaceId, [
         'flatObjectMetadataMaps',
       ]);
 
-    return Object.values(
-      flatObjectMetadataMaps.byUniversalIdentifier,
-    ).find(
+    return Object.values(flatObjectMetadataMaps.byUniversalIdentifier).find(
       (meta) =>
-        meta &&
-        'nameSingular' in meta &&
-        meta.nameSingular === nameSingular,
+        meta && 'nameSingular' in meta && meta.nameSingular === nameSingular,
     );
   }
 }

@@ -81,11 +81,10 @@ export class LeadHideOnFinalStageListener {
           );
 
           if (result.length > 0) {
-            await this.eventEmitter.emitUpdated(
+            await this.eventEmitter.emitDeleted(
               'lead',
               event.recordId,
-              { deletedAt: null },
-              { deletedAt: new Date().toISOString() },
+              event.properties.after as unknown as Record<string, unknown>,
               payload.workspaceId,
             );
             this.logger.log(
@@ -102,11 +101,10 @@ export class LeadHideOnFinalStageListener {
           );
 
           if (result.length > 0) {
-            await this.eventEmitter.emitUpdated(
+            await this.eventEmitter.emitRestored(
               'lead',
               event.recordId,
-              { deletedAt: new Date().toISOString() },
-              { deletedAt: null },
+              event.properties.after as unknown as Record<string, unknown>,
               payload.workspaceId,
             );
             this.logger.log(
