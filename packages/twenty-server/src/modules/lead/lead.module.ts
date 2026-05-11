@@ -9,6 +9,7 @@ import { LeadEnrichmentListener } from 'src/modules/lead/listeners/lead-enrichme
 import { LeadStageTransitionListener } from 'src/modules/lead/listeners/lead-stage-transition.listener';
 import { LeadFieldsSyncListener } from 'src/modules/lead/listeners/lead-fields-sync.listener';
 import { LeadHideOnFinalStageListener } from 'src/modules/lead/listeners/lead-hide-on-final-stage.listener';
+import { MirrorStageListener } from 'src/modules/lead/listeners/mirror-stage.listener';
 import { LeadLostToLossListener } from 'src/modules/lead/listeners/lead-lost-to-loss.listener';
 import { LeadSentProposalToOpportunityListener } from 'src/modules/lead/listeners/lead-sent-proposal-to-opportunity.listener';
 import { LeadWonToClientListener } from 'src/modules/lead/listeners/lead-won-to-client.listener';
@@ -41,6 +42,7 @@ import { TelegramQAService } from 'src/modules/lead/services/telegram-qa.service
     LeadStageTransitionListener,
     LeadFieldsSyncListener,
     LeadHideOnFinalStageListener,
+    MirrorStageListener,
     LeadLostToLossListener,
     LeadSentProposalToOpportunityListener,
     LeadWebhookService,
