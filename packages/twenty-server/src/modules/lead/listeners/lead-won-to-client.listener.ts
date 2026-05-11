@@ -10,6 +10,7 @@ import { OnDatabaseBatchEvent } from 'src/engine/api/graphql/graphql-query-runne
 import { DatabaseEventAction } from 'src/engine/api/graphql/graphql-query-runner/enums/database-event-action';
 import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/get-workspace-schema-name.util';
 import { type WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
+import { LeadEventEmitterService } from 'src/modules/lead/services/lead-event-emitter.service';
 import { type LeadWorkspaceEntity } from 'src/modules/lead/standard-objects/lead.workspace-entity';
 
 // When a lead is marked as WON, automatically create a Person (Client) record
@@ -22,13 +23,12 @@ export class LeadWonToClientListener {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: LeadEventEmitterService,
   ) {}
 
   @OnDatabaseBatchEvent('lead', DatabaseEventAction.UPDATED)
   async handleLeadUpdated(
-    payload: WorkspaceEventBatch<
-      ObjectRecordUpdateEvent<LeadWorkspaceEntity>
-    >,
+    payload: WorkspaceEventBatch<ObjectRecordUpdateEvent<LeadWorkspaceEntity>>,
   ) {
     if (!isDefined(payload.workspaceId)) {
       return;
@@ -38,26 +38,75 @@ export class LeadWonToClientListener {
       const previousStage = event.properties.before.stage;
       const newStage = event.properties.after.stage;
 
-      if (!isDefined(newStage) || newStage !== 'WON' || newStage === previousStage) {
+      if (
+        !isDefined(newStage) ||
+        newStage !== 'WON' ||
+        newStage === previousStage
+      ) {
         continue;
       }
 
       const lead = event.properties.after;
       const schema = getWorkspaceSchemaName(payload.workspaceId);
 
-      // Check if a person with this email already exists
+      // If a Person already exists with this email, surface it as a "fresh"
+      // client by bumping updatedAt and restoring it if soft-deleted. Without
+      // this bump, the Clients view (sorted by recency) wouldn't reflect the
+      // new WON transition because the existing Person was created earlier.
       const email = lead.emails?.primaryEmail;
 
       if (email) {
         const existing = await this.dataSource.query(
-          `SELECT id FROM "${schema}"."person" WHERE "emailsPrimaryEmail" = $1 LIMIT 1`,
+          `SELECT id, "deletedAt" FROM "${schema}"."person"
+           WHERE "emailsPrimaryEmail" = $1 LIMIT 1`,
           [email],
         );
 
         if (existing.length > 0) {
-          this.logger.log(
-            `Client already exists for lead ${event.recordId} (email: ${email}), skipping`,
+          const personId = existing[0].id;
+          const wasDeleted = existing[0].deletedAt !== null;
+
+          await this.dataSource.query(
+            `UPDATE "${schema}"."person"
+             SET "deletedAt" = NULL, "updatedAt" = NOW()
+             WHERE id = $1`,
+            [personId],
           );
+
+          // Re-link any lead notes/tasks that aren't yet pointed at this Person
+          await this.dataSource.query(
+            `UPDATE "${schema}"."noteTarget" SET "targetPersonId" = $1
+             WHERE "targetLeadId" = $2 AND "targetPersonId" IS NULL`,
+            [personId, event.recordId],
+          );
+          await this.dataSource.query(
+            `UPDATE "${schema}"."taskTarget" SET "targetPersonId" = $1
+             WHERE "targetLeadId" = $2 AND "targetPersonId" IS NULL`,
+            [personId, event.recordId],
+          );
+
+          if (wasDeleted) {
+            await this.eventEmitter.emitRestored(
+              'person',
+              personId,
+              { emailsPrimaryEmail: email },
+              payload.workspaceId,
+            );
+            this.logger.log(
+              `Restored soft-deleted Client ${personId} (email: ${email}) for won lead ${event.recordId}`,
+            );
+          } else {
+            await this.eventEmitter.emitUpdated(
+              'person',
+              personId,
+              {},
+              { updatedAt: new Date().toISOString() },
+              payload.workspaceId,
+            );
+            this.logger.log(
+              `Bumped existing Client ${personId} (email: ${email}) on WON lead ${event.recordId}`,
+            );
+          }
 
           continue;
         }
