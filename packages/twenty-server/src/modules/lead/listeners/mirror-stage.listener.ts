@@ -34,6 +34,8 @@ type AnyRecord = Record<string, unknown> & {
   // person uses split name fields
   nameFirstName?: string | null;
   nameLastName?: string | null;
+  // opportunity links to person via pointOfContactId
+  pointOfContactId?: string | null;
 };
 
 const HOME_STAGES: Record<'person' | 'loss' | 'opportunity', Set<string>> = {
@@ -94,7 +96,7 @@ export class MirrorStageListener {
       if (homeStages.has(afterStage)) continue;
 
       // Resolve identifying info for matching the lead
-      const email = this.resolveEmail(sourceType, after);
+      const email = await this.resolveEmail(schema, sourceType, after);
       const name = this.resolveName(sourceType, after);
 
       if (!email && !name) {
@@ -146,15 +148,26 @@ export class MirrorStageListener {
     }
   }
 
-  private resolveEmail(
+  private async resolveEmail(
+    schema: string,
     sourceType: 'person' | 'loss' | 'opportunity',
     record: AnyRecord,
-  ): string | null {
-    // For opportunity, look up email via pointOfContact (Person) link
+  ): Promise<string | null> {
+    // For opportunity, fetch the email from the linked pointOfContact Person
     if (sourceType === 'opportunity') {
-      // The event payload may not carry the joined email — let the listener
-      // fall back to lead lookup by name.
-      return null;
+      if (!record.pointOfContactId) return null;
+
+      try {
+        const rows = await this.dataSource.query(
+          `SELECT "emailsPrimaryEmail" AS email FROM "${schema}"."person"
+           WHERE id = $1 LIMIT 1`,
+          [record.pointOfContactId],
+        );
+
+        return rows[0]?.email?.trim().toLowerCase() || null;
+      } catch {
+        return null;
+      }
     }
 
     return record.emailsPrimaryEmail?.trim().toLowerCase() || null;
@@ -240,7 +253,7 @@ export class MirrorStageListener {
        ) VALUES (
          $1, $2, $3, '[]'::jsonb,
          '', '', '', '[]'::jsonb,
-         'MIRROR', $4, 'MEDIUM', 'NOT_ENRICHED', 0,
+         'OTHER', $4, 'MEDIUM', 'NOT_ENRICHED', 0,
          NOW(), NOW()
        )`,
       [newId, name ?? '(unnamed)', email ?? '', stage],
