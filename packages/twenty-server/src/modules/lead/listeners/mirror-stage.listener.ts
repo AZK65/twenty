@@ -304,15 +304,79 @@ export class MirrorStageListener {
     // Emit synthetic UPDATED so Lead-side listeners (WonToClient, LostToLoss,
     // SentProposalToOpportunity, HideOnFinalStage) react to the stage change.
     if (previousStage !== stage) {
+      // Fetch the lead row so downstream listeners receive a FULL payload —
+      // name/emails/phones/companyId etc. Without this, LeadWonToClient sees
+      // an empty `after.emails.primaryEmail` and can't dedup or populate the
+      // new Person, leaving the user with an orphaned soft-deleted lead.
+      const after = await this.fetchLeadForEvent(schema, leadId, stage);
+
       await this.eventEmitter.emitUpdated(
         'lead',
         leadId,
         { stage: previousStage ?? null },
-        { stage },
+        after,
         workspaceId,
       );
     }
 
     return leadId;
+  }
+
+  private async fetchLeadForEvent(
+    schema: string,
+    leadId: string,
+    fallbackStage: string,
+  ): Promise<Record<string, unknown>> {
+    try {
+      const rows = await this.dataSource.query(
+        `SELECT
+           id, name, stage::text AS stage,
+           "emailsPrimaryEmail",
+           "emailsAdditionalEmails",
+           "phonesPrimaryPhoneNumber",
+           "phonesPrimaryPhoneCountryCode",
+           "phonesPrimaryPhoneCallingCode",
+           "phonesAdditionalPhones",
+           "linkedinLinkPrimaryLinkLabel",
+           "linkedinLinkPrimaryLinkUrl",
+           "linkedinLinkSecondaryLinks",
+           "companyId", source, "sourceDetail", needs
+         FROM "${schema}"."lead" WHERE id = $1 LIMIT 1`,
+        [leadId],
+      );
+
+      if (!rows[0]) return { stage: fallbackStage };
+
+      const r = rows[0];
+
+      // Shape the payload to match Twenty's composite field structure that
+      // LeadWonToClient expects (lead.emails.primaryEmail, lead.phones.*).
+      return {
+        id: r.id,
+        name: r.name,
+        stage: r.stage,
+        companyId: r.companyId,
+        source: r.source,
+        sourceDetail: r.sourceDetail,
+        needs: r.needs,
+        emails: {
+          primaryEmail: r.emailsPrimaryEmail ?? '',
+          additionalEmails: r.emailsAdditionalEmails ?? [],
+        },
+        phones: {
+          primaryPhoneNumber: r.phonesPrimaryPhoneNumber ?? '',
+          primaryPhoneCountryCode: r.phonesPrimaryPhoneCountryCode ?? '',
+          primaryPhoneCallingCode: r.phonesPrimaryPhoneCallingCode ?? '',
+          additionalPhones: r.phonesAdditionalPhones ?? [],
+        },
+        linkedinLink: {
+          primaryLinkLabel: r.linkedinLinkPrimaryLinkLabel ?? '',
+          primaryLinkUrl: r.linkedinLinkPrimaryLinkUrl ?? '',
+          secondaryLinks: r.linkedinLinkSecondaryLinks ?? [],
+        },
+      };
+    } catch {
+      return { stage: fallbackStage };
+    }
   }
 }
