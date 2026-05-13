@@ -122,6 +122,31 @@ export class MirrorStageListener {
           continue;
         }
 
+        // Carry notes/tasks over to the Lead before soft-deleting the source.
+        // Otherwise the existing notes (attached via targetPersonId /
+        // targetLossId / targetOpportunityId) get stranded on the
+        // soft-deleted record, and the downstream Lead-side listener
+        // (LeadWonToClient etc.) only re-links notes by `targetLeadId`.
+        const targetCol =
+          sourceType === 'person'
+            ? 'targetPersonId'
+            : sourceType === 'loss'
+              ? 'targetLossId'
+              : 'targetOpportunityId';
+
+        await this.dataSource.query(
+          `UPDATE "${schema}"."noteTarget"
+           SET "targetLeadId" = $1
+           WHERE "${targetCol}" = $2 AND "targetLeadId" IS NULL`,
+          [leadId, event.recordId],
+        );
+        await this.dataSource.query(
+          `UPDATE "${schema}"."taskTarget"
+           SET "targetLeadId" = $1
+           WHERE "${targetCol}" = $2 AND "targetLeadId" IS NULL`,
+          [leadId, event.recordId],
+        );
+
         // Soft-delete the source record so it disappears from its current view
         await this.dataSource.query(
           `UPDATE "${schema}"."${sourceTable}"
