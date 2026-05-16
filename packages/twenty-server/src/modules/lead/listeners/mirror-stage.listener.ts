@@ -85,6 +85,10 @@ export class MirrorStageListener {
     const sourceTable = sourceType === 'loss' ? '_loss' : sourceType;
     const homeStages = HOME_STAGES[sourceType];
 
+    this.logger.log(
+      `MirrorStage received ${sourceType}.updated batch (${payload.events.length} event${payload.events.length === 1 ? '' : 's'})`,
+    );
+
     for (const event of payload.events) {
       const before = (event.properties.before ?? {}) as AnyRecord;
       const after = (event.properties.after ?? {}) as AnyRecord;
@@ -92,8 +96,22 @@ export class MirrorStageListener {
       const beforeStage = before.stage ?? null;
       const afterStage = after.stage ?? null;
 
-      if (!afterStage || beforeStage === afterStage) continue;
-      if (homeStages.has(afterStage)) continue;
+      this.logger.log(
+        `MirrorStage ${sourceType} ${event.recordId} stage ${beforeStage ?? '(none)'} → ${afterStage ?? '(none)'} (homeStages=${[...homeStages].join(',')})`,
+      );
+
+      if (!afterStage || beforeStage === afterStage) {
+        this.logger.log(
+          `MirrorStage ${sourceType} ${event.recordId} skip: no change`,
+        );
+        continue;
+      }
+      if (homeStages.has(afterStage)) {
+        this.logger.log(
+          `MirrorStage ${sourceType} ${event.recordId} skip: ${afterStage} is a home stage`,
+        );
+        continue;
+      }
 
       // Resolve identifying info for matching the lead
       const email = await this.resolveEmail(schema, sourceType, after);
