@@ -7,16 +7,34 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { InjectDataSource } from '@nestjs/typeorm';
 
+import { type Request, type Response } from 'express';
+import { extname } from 'path';
+import { Readable } from 'stream';
 import { DataSource } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
 import { getWorkspaceAuthContext } from 'src/engine/core-modules/auth/storage/workspace-auth-context.storage';
+import { FileStorageDriverFactory } from 'src/engine/core-modules/file-storage/file-storage-driver.factory';
 import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
+
+// Multer file type — keeps us free of @types/multer.
+type UploadedMulterFile = {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+};
 
 type Folder = {
   id: string;
@@ -34,6 +52,7 @@ type DocFile = {
   fileSize: number;
   mimeType: string | null;
   description: string | null;
+  storagePath: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -46,7 +65,12 @@ export class SalesDocsController {
   constructor(
     @InjectDataSource()
     private readonly coreDataSource: DataSource,
+    private readonly fileStorageDriverFactory: FileStorageDriverFactory,
   ) {}
+
+  private storagePathFor(workspaceId: string, fileId: string, ext: string) {
+    return `${workspaceId}/sales-docs/${fileId}${ext}`;
+  }
 
   // -------- Folders --------
 
@@ -133,7 +157,7 @@ export class SalesDocsController {
 
     if (folderId === 'root' || folderId === undefined || folderId === '') {
       return this.coreDataSource.query(
-        `SELECT id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "createdAt", "updatedAt"
+        `SELECT id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"
            FROM core.sales_doc_file
           WHERE "workspaceId" = $1 AND "folderId" IS NULL
           ORDER BY name ASC`,
@@ -142,7 +166,7 @@ export class SalesDocsController {
     }
 
     return this.coreDataSource.query(
-      `SELECT id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "createdAt", "updatedAt"
+      `SELECT id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"
          FROM core.sales_doc_file
         WHERE "workspaceId" = $1 AND "folderId" = $2
         ORDER BY name ASC`,
@@ -170,7 +194,7 @@ export class SalesDocsController {
       `INSERT INTO core.sales_doc_file
          ("workspaceId", "folderId", name, "fileUrl", "fileSize", "mimeType", description, "createdById")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "createdAt", "updatedAt"`,
+       RETURNING id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"`,
       [
         workspace.id,
         body.folderId ?? null,
@@ -207,7 +231,7 @@ export class SalesDocsController {
               "fileUrl" = COALESCE($7, "fileUrl"),
               "updatedAt" = now()
         WHERE id = $1 AND "workspaceId" = $2
-       RETURNING id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "createdAt", "updatedAt"`,
+       RETURNING id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"`,
       [
         id,
         workspace.id,
@@ -226,6 +250,28 @@ export class SalesDocsController {
   async deleteFile(@Param('id') id: string): Promise<{ ok: true }> {
     const { workspace } = getWorkspaceAuthContext();
 
+    const rows: { storagePath: string | null }[] =
+      await this.coreDataSource.query(
+        `SELECT "storagePath" FROM core.sales_doc_file
+          WHERE id = $1 AND "workspaceId" = $2`,
+        [id, workspace.id],
+      );
+
+    if (rows[0]?.storagePath) {
+      try {
+        const driver = this.fileStorageDriverFactory.getCurrentDriver();
+        const path = rows[0].storagePath;
+        const slash = path.lastIndexOf('/');
+        const folderPath = slash >= 0 ? path.slice(0, slash) : '';
+        const filename = slash >= 0 ? path.slice(slash + 1) : path;
+
+        await driver.delete({ folderPath, filename });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('sales-docs: failed to delete blob', err);
+      }
+    }
+
     await this.coreDataSource.query(
       `DELETE FROM core.sales_doc_file
         WHERE id = $1 AND "workspaceId" = $2`,
@@ -233,5 +279,117 @@ export class SalesDocsController {
     );
 
     return { ok: true };
+  }
+
+  // -------- Upload + download --------
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(
+    @UploadedFile() file: UploadedMulterFile,
+    @Req() req: Request,
+  ): Promise<DocFile> {
+    const ctx = getWorkspaceAuthContext();
+    const workspace = ctx.workspace;
+    const userId = 'user' in ctx ? ctx.user.id : null;
+
+    if (!file) {
+      throw new Error('No file uploaded');
+    }
+
+    const rawFolderId = (req.body as { folderId?: string } | undefined)
+      ?.folderId;
+    const folderId =
+      typeof rawFolderId === 'string' && rawFolderId !== ''
+        ? rawFolderId
+        : null;
+
+    const rawName = (req.body as { name?: string } | undefined)?.name;
+    const customName =
+      typeof rawName === 'string' && rawName.trim() !== ''
+        ? rawName.trim()
+        : file.originalname;
+
+    const fileId = uuidv4();
+    const ext = extname(file.originalname) || '';
+    const storagePath = this.storagePathFor(workspace.id, fileId, ext);
+
+    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+
+    await driver.writeFile({
+      filePath: storagePath,
+      sourceFile: file.buffer,
+      mimeType: file.mimetype,
+    });
+
+    const rows: DocFile[] = await this.coreDataSource.query(
+      `INSERT INTO core.sales_doc_file
+         (id, "workspaceId", "folderId", name, "fileUrl", "fileSize", "mimeType", "storagePath", "createdById")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"`,
+      [
+        fileId,
+        workspace.id,
+        folderId,
+        customName,
+        '',
+        file.size,
+        file.mimetype,
+        storagePath,
+        userId,
+      ],
+    );
+
+    return rows[0];
+  }
+
+  @Get('files/:id/download')
+  async downloadFile(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { workspace } = getWorkspaceAuthContext();
+
+    const rows: DocFile[] = await this.coreDataSource.query(
+      `SELECT id, "folderId", name, "fileUrl", "fileSize", "mimeType", description, "storagePath", "createdAt", "updatedAt"
+         FROM core.sales_doc_file
+        WHERE id = $1 AND "workspaceId" = $2`,
+      [id, workspace.id],
+    );
+
+    const file = rows[0];
+
+    if (!file) {
+      res.status(404).send('Not found');
+
+      return;
+    }
+
+    if (!file.storagePath) {
+      res.redirect(file.fileUrl);
+
+      return;
+    }
+
+    const driver = this.fileStorageDriverFactory.getCurrentDriver();
+    const stream: Readable = await driver.readFile({
+      filePath: file.storagePath,
+    });
+
+    res.setHeader(
+      'Content-Type',
+      file.mimeType ?? 'application/octet-stream',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${encodeURIComponent(file.name)}"`,
+    );
+
+    stream.on('error', (err) => {
+      // eslint-disable-next-line no-console
+      console.error('sales-docs download stream error', err);
+      if (!res.headersSent) res.status(500).send('Stream error');
+    });
+    stream.pipe(res);
   }
 }

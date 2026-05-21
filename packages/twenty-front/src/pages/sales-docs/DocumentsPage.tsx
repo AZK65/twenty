@@ -1,7 +1,7 @@
 import { getTokenPair } from '@/apollo/utils/getTokenPair';
 import { PageTitle } from '@/ui/utilities/page-title/components/PageTitle';
 import { styled } from '@linaria/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
 
 type Folder = {
@@ -16,6 +16,8 @@ type DocFile = {
   name: string;
   fileUrl: string;
   description: string | null;
+  storagePath: string | null;
+  mimeType: string | null;
 };
 
 const PageRoot = styled.div`
@@ -172,6 +174,24 @@ const Empty = styled.div`
   font-size: 14px;
 `;
 
+const DropOverlay = styled.div<{ active: boolean }>`
+  display: ${({ active }) => (active ? 'flex' : 'none')};
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.12);
+  border: 2px dashed var(--blue);
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--blue);
+  pointer-events: none;
+  z-index: 5;
+`;
+
+const HiddenInput = styled.input`
+  display: none;
+`;
+
 const ModalBackdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -310,6 +330,64 @@ const api = {
 
     return r.json();
   },
+  uploadFile: async (
+    file: File,
+    folderId: string | null,
+  ): Promise<DocFile> => {
+    const token = getTokenPair()?.accessOrWorkspaceAgnosticToken?.token;
+    const fd = new FormData();
+
+    fd.append('file', file);
+    if (folderId) fd.append('folderId', folderId);
+
+    const r = await fetch(`${apiBase}/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+
+    if (!r.ok) throw new Error(`Upload failed (${r.status})`);
+
+    return r.json();
+  },
+  moveFile: async (id: string, folderId: string | null) => {
+    const r = await fetch(`${apiBase}/files/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ folderId }),
+    });
+
+    if (!r.ok) throw new Error(`Failed to move file (${r.status})`);
+
+    return r.json();
+  },
+  moveFolder: async (id: string, parentId: string | null) => {
+    const r = await fetch(`${apiBase}/folders/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ parentId }),
+    });
+
+    if (!r.ok) throw new Error(`Failed to move folder (${r.status})`);
+
+    return r.json();
+  },
+};
+
+const downloadHref = (fileId: string): string =>
+  `${apiBase}/files/${fileId}/download`;
+
+const fileIconFor = (file: DocFile): string => {
+  const mime = file.mimeType ?? '';
+
+  if (mime.startsWith('image/')) return '🖼️';
+  if (mime === 'application/pdf') return '📕';
+  if (mime.includes('spreadsheet') || mime.includes('excel')) return '📊';
+  if (mime.includes('word') || mime.includes('document')) return '📝';
+  if (mime.startsWith('video/')) return '🎬';
+  if (mime.startsWith('audio/')) return '🎵';
+
+  return '📄';
 };
 
 const childrenOf = (folders: Folder[], parentId: string | null): Folder[] =>
@@ -399,6 +477,10 @@ export const DocumentsPage = () => {
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -501,6 +583,74 @@ export const DocumentsPage = () => {
   const toggleExpand = (id: string) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const handleUploadFiles = async (fileList: FileList | File[]) => {
+    if (!fileList || (fileList as FileList).length === 0) return;
+    setUploading(true);
+    try {
+      for (const f of Array.from(fileList)) {
+        await api.uploadFile(f, currentFolderId);
+      }
+      await refresh();
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleMoveFile = async (id: string, name: string) => {
+    // eslint-disable-next-line no-alert
+    const target = prompt(
+      'Move to folder — paste folder name (or leave blank for root):',
+      '',
+    );
+
+    if (target === null) return;
+
+    let destId: string | null = null;
+
+    if (target.trim() !== '') {
+      const match = folders.find(
+        (f) => f.name.toLowerCase() === target.trim().toLowerCase(),
+      );
+
+      if (!match) {
+        // eslint-disable-next-line no-alert
+        alert(`No folder named "${target}" found.`);
+
+        return;
+      }
+      destId = match.id;
+    }
+
+    await api.moveFile(id, destId);
+    await refresh();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(`Delete ${selectedFiles.size} file(s)?`)) return;
+    for (const id of selectedFiles) {
+      await api.deleteFile(id);
+    }
+    setSelectedFiles(new Set());
+    await refresh();
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+
+      return next;
+    });
+  };
+
   return (
     <>
       <PageTitle title="Documents" />
@@ -529,7 +679,35 @@ export const DocumentsPage = () => {
             />
           ))}
         </SidePane>
-        <MainPane>
+        <MainPane
+          style={{ position: 'relative' }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDropActive(true);
+          }}
+          onDragLeave={(e) => {
+            // only deactivate when leaving the MainPane entirely
+            if (
+              e.relatedTarget instanceof Node &&
+              e.currentTarget.contains(e.relatedTarget)
+            )
+              return;
+            setDropActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDropActive(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              handleUploadFiles(e.dataTransfer.files);
+            }
+          }}
+        >
+          <DropOverlay active={dropActive}>
+            Drop files to upload to{' '}
+            {crumbs.length > 0
+              ? crumbs[crumbs.length - 1].name
+              : 'Documents'}
+          </DropOverlay>
           <TopBar>
             <Breadcrumbs>
               <Crumb link onClick={() => setCurrentFolderId(null)}>
@@ -544,6 +722,11 @@ export const DocumentsPage = () => {
                 </span>
               ))}
             </Breadcrumbs>
+            {selectedFiles.size > 0 && (
+              <Button className="secondary" onClick={handleBulkDelete}>
+                Delete {selectedFiles.size} selected
+              </Button>
+            )}
             <Button
               className="secondary"
               onClick={() => {
@@ -554,14 +737,30 @@ export const DocumentsPage = () => {
               + New folder
             </Button>
             <Button
+              className="secondary"
               onClick={() => {
                 setNewName('');
                 setNewUrl('');
                 setShowFileModal(true);
               }}
             >
-              + Add file
+              + Link
             </Button>
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? 'Uploading…' : '+ Upload'}
+            </Button>
+            <HiddenInput
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => {
+                if (e.target.files) handleUploadFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
           </TopBar>
           {loading ? (
             <Empty>Loading…</Empty>
@@ -596,33 +795,77 @@ export const DocumentsPage = () => {
                   </CardMenu>
                 </Card>
               ))}
-              {files.map((file) => (
-                <Card
-                  key={file.id}
-                  onClick={() => window.open(file.fileUrl, '_blank')}
-                >
-                  <CardIcon>📄</CardIcon>
-                  <CardName>{file.name}</CardName>
-                  <CardMenu
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // eslint-disable-next-line no-alert
-                      const action = prompt(
-                        'Type "rename" or "delete"',
-                        'rename',
-                      );
+              {files.map((file) => {
+                const isSelected = selectedFiles.has(file.id);
+                const openHref = file.storagePath
+                  ? downloadHref(file.id)
+                  : file.fileUrl;
 
-                      if (action === 'rename') {
-                        handleRenameFile(file.id, file.name);
-                      } else if (action === 'delete') {
-                        handleDeleteFile(file.id);
+                return (
+                  <Card
+                    key={file.id}
+                    style={{
+                      borderColor: isSelected
+                        ? 'var(--blue)'
+                        : undefined,
+                      background: isSelected
+                        ? 'rgba(59, 130, 246, 0.06)'
+                        : undefined,
+                    }}
+                    onClick={(e) => {
+                      if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                        toggleSelect(file.id, e);
+
+                        return;
+                      }
+                      // open in new tab; include auth via cookie session
+                      const token =
+                        getTokenPair()?.accessOrWorkspaceAgnosticToken
+                          ?.token;
+
+                      if (file.storagePath && token) {
+                        // Fetch with auth, then open blob URL.
+                        fetch(openHref, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        })
+                          .then((r) => r.blob())
+                          .then((b) => {
+                            const url = URL.createObjectURL(b);
+
+                            window.open(url, '_blank');
+                          });
+                      } else {
+                        window.open(openHref, '_blank');
                       }
                     }}
                   >
-                    ⋯
-                  </CardMenu>
-                </Card>
-              ))}
+                    <CardIcon>{fileIconFor(file)}</CardIcon>
+                    <CardName>{file.name}</CardName>
+                    <CardMenu
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // eslint-disable-next-line no-alert
+                        const action = prompt(
+                          'Type "rename", "move", "select" or "delete"',
+                          'rename',
+                        );
+
+                        if (action === 'rename') {
+                          handleRenameFile(file.id, file.name);
+                        } else if (action === 'delete') {
+                          handleDeleteFile(file.id);
+                        } else if (action === 'move') {
+                          handleMoveFile(file.id, file.name);
+                        } else if (action === 'select') {
+                          toggleSelect(file.id, e);
+                        }
+                      }}
+                    >
+                      ⋯
+                    </CardMenu>
+                  </Card>
+                );
+              })}
             </Grid>
           )}
         </MainPane>
