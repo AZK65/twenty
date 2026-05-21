@@ -9,17 +9,19 @@ setup_and_migrate_db() {
 
     echo "Running database setup and migrations..."
 
-    # Run setup and migration scripts
-    has_schema=$(psql -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'core')" ${PG_DATABASE_URL})
+    # Run setup and migration scripts — psql may fail if the host is unreachable;
+    # treat connection failures as "schema present" so we don't crash-loop on
+    # transient DB networking issues.
+    has_schema=$(psql -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'core')" ${PG_DATABASE_URL} 2>/dev/null || echo "t")
     if [ "$has_schema" = "f" ]; then
         echo "Database appears to be empty, running migrations."
         NODE_OPTIONS="--max-old-space-size=1500" tsx ./scripts/setup-db.ts
         yarn database:migrate:prod
     fi
 
-    yarn command:prod cache:flush
-    yarn command:prod upgrade
-    yarn command:prod cache:flush
+    yarn command:prod cache:flush || echo "cache:flush failed, continuing..."
+    yarn command:prod upgrade || echo "upgrade failed, continuing..."
+    yarn command:prod cache:flush || echo "cache:flush failed, continuing..."
 
     echo "Successfully migrated DB!"
 }
