@@ -100,6 +100,12 @@ const NotFound = lazy(() =>
   })),
 );
 
+const DocumentsPage = lazy(() =>
+  import('~/pages/sales-docs/DocumentsPage').then((module) => ({
+    default: module.DocumentsPage,
+  })),
+);
+
 export const useCreateAppRouter = (
   isFunctionSettingsEnabled?: boolean,
   isAdminPageEnabled?: boolean,
@@ -217,6 +223,14 @@ export const useCreateAppRouter = (
             element={
               <LazyRoute>
                 <RecordShowPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="/documents"
+            element={
+              <LazyRoute>
+                <DocumentsPage />
               </LazyRoute>
             }
           />
