@@ -106,6 +106,12 @@ const DocumentsPage = lazy(() =>
   })),
 );
 
+const SalesDealsPage = lazy(() =>
+  import('~/pages/sales-deal/SalesDealsPage').then((module) => ({
+    default: module.SalesDealsPage,
+  })),
+);
+
 export const useCreateAppRouter = (
   isFunctionSettingsEnabled?: boolean,
   isAdminPageEnabled?: boolean,
@@ -231,6 +237,14 @@ export const useCreateAppRouter = (
             element={
               <LazyRoute>
                 <DocumentsPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="/sales-deals"
+            element={
+              <LazyRoute>
+                <SalesDealsPage />
               </LazyRoute>
             }
           />

@@ -2,7 +2,12 @@ import { useLingui } from '@lingui/react/macro';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
-import { IconFolder, IconHelpCircle, IconSettings } from 'twenty-ui/display';
+import {
+  IconCurrencyDollar,
+  IconFolder,
+  IconHelpCircle,
+  IconSettings,
+} from 'twenty-ui/display';
 import { AnimatedExpandableContainer } from 'twenty-ui/layout';
 
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
@@ -70,6 +75,12 @@ export const NavigationDrawerOtherSection = () => {
           Icon={IconFolder}
           to="/documents"
           active={location.pathname.startsWith('/documents')}
+        />
+        <NavigationDrawerItem
+          label={t`Sales Deals`}
+          Icon={IconCurrencyDollar}
+          to="/sales-deals"
+          active={location.pathname.startsWith('/sales-deals')}
         />
         <NavigationDrawerItem
           label={t`Settings`}
