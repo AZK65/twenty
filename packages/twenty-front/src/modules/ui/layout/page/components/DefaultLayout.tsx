@@ -8,6 +8,7 @@ import { KeyboardShortcutMenu } from '@/keyboard-shortcut-menu/components/Keyboa
 import { LayoutCustomizationBar } from '@/layout-customization/components/LayoutCustomizationBar';
 import { AppNavigationDrawer } from '@/navigation/components/AppNavigationDrawer';
 import { MobileNavigationBar } from '@/navigation/components/MobileNavigationBar';
+import { TopNavBar } from '@/navigation/components/TopNavBar';
 import { PageDragDropProvider } from '@/navigation-menu-item/display/dnd/providers/PageDragDropProvider';
 import { useIsSettingsPage } from '@/navigation/hooks/useIsSettingsPage';
 import { OBJECT_SETTINGS_WIDTH } from '@/settings/data-model/constants/ObjectSettings';
@@ -76,6 +77,7 @@ export const DefaultLayout = () => {
           <AppErrorBoundary FallbackComponent={AppFullScreenErrorFallback}>
             <InformationBannerIsImpersonating />
             <LayoutCustomizationBar />
+            {!showAuthModal && !useShowFullScreen && !isMobile && <TopNavBar />}
             <StyledPageContainer
               animate={{
                 marginLeft:

@@ -106,7 +106,53 @@ export class SalesDealController {
       ],
     );
 
-    return rows[0];
+    const deal = rows[0];
+
+    // Auto-fill payouts when mrr or leadSource changed, unless the caller set a
+    // manual jakePay/finityPay in the same request (manual override wins).
+    const driverChanged =
+      body.mrr !== undefined || body.leadSource !== undefined;
+    const manualPayout =
+      body.jakePay !== undefined || body.finityPay !== undefined;
+
+    if (deal !== undefined && driverChanged && !manualPayout) {
+      const { jakePay, finityPay } = this.computePayouts(
+        deal.mrr,
+        deal.leadSource,
+      );
+
+      const recomputed: SalesDeal[] = await this.coreDataSource.query(
+        `UPDATE core.sales_deal
+            SET "jakePay" = $3, "finityPay" = $4, "updatedAt" = now()
+          WHERE id = $1 AND "workspaceId" = $2
+         RETURNING ${SELECT_COLUMNS}`,
+        [id, workspace.id, jakePay, finityPay],
+      );
+
+      return recomputed[0];
+    }
+
+    return deal;
+  }
+
+  // Spec payout formula: Jake gets 10% of MRR (20% if leadSource is "Jake");
+  // Finity gets 10% only when leadSource is "Finity", else 0.
+  private computePayouts(
+    mrr: number | null,
+    leadSource: string,
+  ): { jakePay: number | null; finityPay: number | null } {
+    const amount = mrr === null ? NaN : Number(mrr);
+
+    if (Number.isNaN(amount)) {
+      return { jakePay: null, finityPay: null };
+    }
+
+    const source = (leadSource ?? '').trim().toLowerCase();
+
+    return {
+      jakePay: source === 'jake' ? amount * 0.2 : amount * 0.1,
+      finityPay: source === 'finity' ? amount * 0.1 : 0,
+    };
   }
 
   @Post('reorder')

@@ -68,6 +68,8 @@ import { TrashCleanupModule } from 'src/engine/trash-cleanup/trash-cleanup.modul
 import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/workspace-event-emitter.module';
 import { ChannelSyncModule } from 'src/modules/connected-account/channel-sync/channel-sync.module';
 import { DashboardModule } from 'src/modules/dashboard/dashboard.module';
+import { ClientRoutingModule } from 'src/modules/client-routing/client-routing.module';
+import { DocPageModule } from 'src/modules/doc-page/doc-page.module';
 import { HomeMetricsModule } from 'src/modules/home-metrics/home-metrics.module';
 import { SalesDealModule } from 'src/modules/sales-deal/sales-deal.module';
 import { SalesDocsModule } from 'src/modules/sales-docs/sales-docs.module';
@@ -156,6 +158,8 @@ import { FileModule } from './file/file.module';
     SalesDocsModule,
     SalesDealModule,
     HomeMetricsModule,
+    DocPageModule,
+    ClientRoutingModule,
     EventLogsModule,
   ],
   exports: [

@@ -118,6 +118,12 @@ const HomePage = lazy(() =>
   })),
 );
 
+const DocEditorPage = lazy(() =>
+  import('~/pages/doc/DocEditorPage').then((module) => ({
+    default: module.DocEditorPage,
+  })),
+);
+
 export const useCreateAppRouter = (
   isFunctionSettingsEnabled?: boolean,
   isAdminPageEnabled?: boolean,
@@ -259,6 +265,22 @@ export const useCreateAppRouter = (
             element={
               <LazyRoute>
                 <HomePage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="/notepad"
+            element={
+              <LazyRoute>
+                <DocEditorPage slug="notepad" title="Note Pad" />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="/cheat-sheet"
+            element={
+              <LazyRoute>
+                <DocEditorPage slug="cheatsheet" title="Cheat Sheet" />
               </LazyRoute>
             }
           />
