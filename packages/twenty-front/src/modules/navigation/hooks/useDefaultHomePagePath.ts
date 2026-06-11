@@ -1,125 +1,22 @@
 import { currentUserState } from '@/auth/states/currentUserState';
-import { lastVisitedObjectMetadataItemIdState } from '@/navigation/states/lastVisitedObjectMetadataItemIdState';
-import { type ObjectPathInfo } from '@/navigation/types/ObjectPathInfo';
-import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
-import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
-import { getObjectPermissionsFromMapByObjectMetadataId } from '@/settings/roles/role-permissions/objects-permissions/utils/getObjectPermissionsFromMapByObjectMetadataId';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
-import { viewsSelector } from '@/views/states/selectors/viewsSelector';
-import isEmpty from 'lodash.isempty';
-import { useCallback, useMemo } from 'react';
-import { AppPath, SettingsPath } from 'twenty-shared/types';
-import { getAppPath, getSettingsPath, isDefined } from 'twenty-shared/utils';
-import { useStore } from 'jotai';
+import { useMemo } from 'react';
+import { AppPath } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 
+// Landing page is the custom Home dashboard (/home). Unauthenticated users are
+// sent to sign-in. Previously this resolved to the first/last-visited object's
+// record page; that behavior is intentionally replaced by the Home dashboard.
 export const useDefaultHomePagePath = () => {
-  const store = useStore();
   const currentUser = useAtomStateValue(currentUserState);
-  const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
-
-  const { alphaSortedActiveNonSystemObjectMetadataItems } =
-    useFilteredObjectMetadataItems();
-
-  const readableAlphaSortedActiveNonSystemObjectMetadataItems = useMemo(() => {
-    return alphaSortedActiveNonSystemObjectMetadataItems.filter((item) => {
-      const objectPermissions = getObjectPermissionsFromMapByObjectMetadataId({
-        objectPermissionsByObjectMetadataId,
-        objectMetadataId: item.id,
-      });
-      return objectPermissions?.canReadObjectRecords;
-    });
-  }, [
-    alphaSortedActiveNonSystemObjectMetadataItems,
-    objectPermissionsByObjectMetadataId,
-  ]);
-
-  const getActiveObjectMetadataItemMatchingId = useCallback(
-    (objectMetadataId: string) => {
-      return readableAlphaSortedActiveNonSystemObjectMetadataItems.find(
-        (item) => item.id === objectMetadataId,
-      );
-    },
-    [readableAlphaSortedActiveNonSystemObjectMetadataItems],
-  );
-
-  const views = useAtomStateValue(viewsSelector);
-
-  const getFirstView = useCallback(
-    (objectMetadataItemId: string | undefined | null) => {
-      return views.find(
-        (view) => view.objectMetadataId === objectMetadataItemId,
-      );
-    },
-    [views],
-  );
-
-  const firstObjectPathInfo = useMemo<ObjectPathInfo | null>(() => {
-    const [firstObjectMetadataItem] =
-      readableAlphaSortedActiveNonSystemObjectMetadataItems;
-
-    if (!isDefined(firstObjectMetadataItem)) {
-      return null;
-    }
-
-    const view = getFirstView(firstObjectMetadataItem?.id);
-
-    return { objectMetadataItem: firstObjectMetadataItem, view };
-  }, [getFirstView, readableAlphaSortedActiveNonSystemObjectMetadataItems]);
-
-  const getDefaultObjectPathInfo = useCallback(() => {
-    const lastVisitedObjectMetadataItemId = store.get(
-      lastVisitedObjectMetadataItemIdState.atom,
-    );
-
-    const lastVisitedObjectMetadataItem = isDefined(
-      lastVisitedObjectMetadataItemId,
-    )
-      ? getActiveObjectMetadataItemMatchingId(lastVisitedObjectMetadataItemId)
-      : undefined;
-
-    if (isDefined(lastVisitedObjectMetadataItem)) {
-      return {
-        view: getFirstView(lastVisitedObjectMetadataItemId),
-        objectMetadataItem: lastVisitedObjectMetadataItem,
-      };
-    }
-
-    return firstObjectPathInfo;
-  }, [
-    firstObjectPathInfo,
-    getActiveObjectMetadataItemMatchingId,
-    getFirstView,
-    store,
-  ]);
 
   const defaultHomePagePath = useMemo(() => {
     if (!isDefined(currentUser)) {
       return AppPath.SignInUp;
     }
 
-    if (isEmpty(readableAlphaSortedActiveNonSystemObjectMetadataItems)) {
-      return getSettingsPath(SettingsPath.ProfilePage);
-    }
-
-    const defaultObjectPathInfo = getDefaultObjectPathInfo();
-
-    if (!isDefined(defaultObjectPathInfo)) {
-      return AppPath.NotFound;
-    }
-
-    const namePlural = defaultObjectPathInfo.objectMetadataItem?.namePlural;
-    const viewId = defaultObjectPathInfo.view?.id;
-
-    return getAppPath(
-      AppPath.RecordIndexPage,
-      { objectNamePlural: namePlural },
-      viewId ? { viewId } : undefined,
-    );
-  }, [
-    currentUser,
-    getDefaultObjectPathInfo,
-    readableAlphaSortedActiveNonSystemObjectMetadataItems,
-  ]);
+    return '/home';
+  }, [currentUser]);
 
   return { defaultHomePagePath };
 };

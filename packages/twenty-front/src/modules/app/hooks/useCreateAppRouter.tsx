@@ -112,6 +112,12 @@ const SalesDealsPage = lazy(() =>
   })),
 );
 
+const HomePage = lazy(() =>
+  import('~/pages/home/HomePage').then((module) => ({
+    default: module.HomePage,
+  })),
+);
+
 export const useCreateAppRouter = (
   isFunctionSettingsEnabled?: boolean,
   isAdminPageEnabled?: boolean,
@@ -245,6 +251,14 @@ export const useCreateAppRouter = (
             element={
               <LazyRoute>
                 <SalesDealsPage />
+              </LazyRoute>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <LazyRoute>
+                <HomePage />
               </LazyRoute>
             }
           />

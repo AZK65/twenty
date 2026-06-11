@@ -6,6 +6,7 @@ import {
   IconCurrencyDollar,
   IconFolder,
   IconHelpCircle,
+  IconHome,
   IconSettings,
 } from 'twenty-ui/display';
 import { AnimatedExpandableContainer } from 'twenty-ui/layout';
@@ -70,6 +71,12 @@ export const NavigationDrawerOtherSection = () => {
         containAnimation
         initial={false}
       >
+        <NavigationDrawerItem
+          label={t`Home`}
+          Icon={IconHome}
+          to="/home"
+          active={location.pathname.startsWith('/home')}
+        />
         <NavigationDrawerItem
           label={t`Documents`}
           Icon={IconFolder}
