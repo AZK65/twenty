@@ -137,6 +137,23 @@ export class LeadWebhookService {
       stage: 'NEW',
       priority: 'MEDIUM',
       enrichmentStatus: 'NOT_ENRICHED',
+      // Pre-qualification funnel fields → dedicated lead columns.
+      extra: {
+        telegram: this.extractString(data, ['telegram']) ?? null,
+        companyRevenue:
+          this.extractString(data, ['monthly_volume', 'volume', 'revenue']) ??
+          null,
+        industry: this.extractString(data, ['category', 'industry']) ?? null,
+        based: this.extractString(data, ['based']) ?? null,
+        country: this.extractString(data, ['country']) ?? null,
+        ssnItin: this.extractString(data, ['ssn_or_itin', 'ssn_itin']) ?? null,
+        usLlc: this.extractString(data, ['us_llc']) ?? null,
+        activeFor: this.extractString(data, ['active_for', 'tenure']) ?? null,
+        sellsTo: this.extractString(data, ['sells_to', 'audience']) ?? null,
+        website: this.extractString(data, ['website']) ?? null,
+        preferredContact:
+          this.extractString(data, ['preferred_contact', 'comm']) ?? null,
+      },
     };
   }
 
@@ -153,6 +170,8 @@ export class LeadWebhookService {
       ? leadData.source.toUpperCase()
       : 'OTHER';
 
+    const x = leadData.extra ?? {};
+
     await this.dataSource.query(
       `INSERT INTO "${schema}"."lead" (
         "id", "name",
@@ -160,6 +179,8 @@ export class LeadWebhookService {
         "phonesPrimaryPhoneNumber", "phonesPrimaryPhoneCountryCode", "phonesPrimaryPhoneCallingCode", "phonesAdditionalPhones",
         "source", "sourceDetail", "needs",
         "stage", "priority", "enrichmentStatus",
+        "telegram", "companyRevenue", "industry",
+        "based", "country", "ssnItin", "usLlc", "activeFor", "sellsTo", "website", "preferredContact",
         "position", "createdAt", "updatedAt"
       ) VALUES (
         $1, $2,
@@ -167,6 +188,8 @@ export class LeadWebhookService {
         $5, $6, '', '[]'::jsonb,
         $7, $8, $9,
         $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23,
         0, NOW(), NOW()
       )`,
       [
@@ -182,6 +205,17 @@ export class LeadWebhookService {
         leadData.stage,
         leadData.priority,
         leadData.enrichmentStatus,
+        x.telegram ?? null,
+        x.companyRevenue ?? null,
+        x.industry ?? null,
+        x.based ?? null,
+        x.country ?? null,
+        x.ssnItin ?? null,
+        x.usLlc ?? null,
+        x.activeFor ?? null,
+        x.sellsTo ?? null,
+        x.website ?? null,
+        x.preferredContact ?? null,
       ],
     );
 

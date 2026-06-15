@@ -35,6 +35,8 @@ export type LeadCreateData = {
   stage: string;
   priority: string;
   enrichmentStatus: string;
+  // Optional funnel/pre-qualification columns, keyed by exact lead column name.
+  extra?: Record<string, string | null>;
 };
 
 // REN webhook: outbound payload sent when a customer call is booked
