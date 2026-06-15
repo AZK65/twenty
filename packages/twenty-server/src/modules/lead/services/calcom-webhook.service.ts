@@ -44,6 +44,27 @@ export class CalcomWebhookService {
     const { affiliateId, referralId } = this.extractTrackingIds(booking);
     const schema = getWorkspaceSchemaName(workspaceId);
 
+    // Pre-qualification fields the funnel form passes as Cal booking metadata.
+    const meta = (booking.metadata ?? {}) as Record<string, unknown>;
+    const m = (k: string): string | null => this.asString(meta[k]);
+    const pq: Record<string, string | null> = {
+      companyRevenue:
+        m('monthly_volume') ??
+        this.extractResponseValue(booking.responses ?? {}, [
+          'revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue',
+        ]),
+      industry: m('category'),
+      telegram: m('telegram'),
+      based: m('based'),
+      country: m('country'),
+      ssnItin: m('ssn_or_itin'),
+      usLlc: m('us_llc'),
+      activeFor: m('active_for'),
+      sellsTo: m('sells_to'),
+      website: m('website'),
+      preferredContact: m('preferred_contact'),
+    };
+
     this.logger.log(
       `Cal.com booking "${booking.uid}" for ${attendee.email}, affiliateId=${affiliateId ?? 'none'}, referralId=${referralId ?? 'none'}`,
     );
@@ -61,7 +82,6 @@ export class CalcomWebhookService {
       leadId = existing[0].id;
       isNew = false;
 
-      const revenue = this.extractResponseValue(booking.responses ?? {}, ['revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue']);
       const meetingLink = this.extractMeetingLink(booking);
       const notes = this.extractNotes(booking);
 
@@ -79,10 +99,13 @@ export class CalcomWebhookService {
         paramIndex++;
       }
 
-      if (revenue) {
-        updates.push(`"companyRevenue" = $${paramIndex}`);
-        params.push(revenue);
-        paramIndex++;
+      // Enrich the lead's columns from the funnel metadata (only when present).
+      for (const [col, val] of Object.entries(pq)) {
+        if (val) {
+          updates.push(`"${col}" = $${paramIndex}`);
+          params.push(val);
+          paramIndex++;
+        }
       }
 
       if (notes) {
@@ -113,13 +136,15 @@ export class CalcomWebhookService {
 
       const name = attendee.name
         || [attendee.firstName, attendee.lastName].filter(Boolean).join(' ')
+        || m('name')
         || attendee.email;
-      const phone = this.extractPhone(booking) ?? '';
-      const calSource = this.extractResponseValue(booking.responses ?? {}, ['source', 'Source']);
+      const phone = this.extractPhone(booking) ?? m('phone') ?? '';
+      const calSource =
+        m('source') ??
+        this.extractResponseValue(booking.responses ?? {}, ['source', 'Source']);
       const source = affiliateId ? 'PARTNER' : (calSource ? this.mapSource(calSource) : 'CAL_COM');
       const sourceDetail = this.buildSourceDetail(affiliateId, referralId) ?? calSource;
       const needs = this.extractNotes(booking);
-      const revenue = this.extractResponseValue(booking.responses ?? {}, ['revenue', 'Revenue', 'Current-Revenue', 'current_revenue', 'monthlyRevenue']);
       const meetingLink = this.extractMeetingLink(booking);
 
       await this.dataSource.query(
@@ -129,7 +154,8 @@ export class CalcomWebhookService {
           "phonesPrimaryPhoneNumber", "phonesPrimaryPhoneCountryCode", "phonesPrimaryPhoneCallingCode", "phonesAdditionalPhones",
           "source", "sourceDetail", "needs",
           "stage", "priority", "enrichmentStatus",
-          "companyRevenue",
+          "companyRevenue", "industry", "telegram",
+          "based", "country", "ssnItin", "usLlc", "activeFor", "sellsTo", "website", "preferredContact",
           "nextFollowUpDate",
           "linkedinLinkPrimaryLinkLabel", "linkedinLinkPrimaryLinkUrl", "linkedinLinkSecondaryLinks",
           "position", "createdAt", "updatedAt"
@@ -139,12 +165,18 @@ export class CalcomWebhookService {
           $4, '', '', '[]'::jsonb,
           $5, $6, $7,
           'MEETING_SCHEDULED', 'HIGH', 'NOT_ENRICHED',
-          $8,
-          $9,
-          'Meeting Link', $10, '[]'::jsonb,
+          $8, $9, $10,
+          $11, $12, $13, $14, $15, $16, $17, $18,
+          $19,
+          'Meeting Link', $20, '[]'::jsonb,
           0, NOW(), NOW()
         )`,
-        [leadId, name, attendee.email, phone, source, sourceDetail, needs, revenue, booking.startTime, meetingLink],
+        [
+          leadId, name, attendee.email, phone, source, sourceDetail, needs,
+          pq.companyRevenue, pq.industry, pq.telegram,
+          pq.based, pq.country, pq.ssnItin, pq.usLlc, pq.activeFor, pq.sellsTo, pq.website, pq.preferredContact,
+          booking.startTime, meetingLink,
+        ],
       );
 
       this.logger.log(
@@ -189,7 +221,83 @@ export class CalcomWebhookService {
       );
     }
 
+    // Notify the sales Telegram bot with the booked time + qualification.
+    try {
+      const tz = (attendee as { timeZone?: string }).timeZone || 'UTC';
+      let when = booking.startTime;
+      try {
+        when =
+          new Intl.DateTimeFormat('en-US', {
+            dateStyle: 'full',
+            timeStyle: 'short',
+            timeZone: tz,
+          }).format(new Date(booking.startTime)) + ` (${tz})`;
+      } catch {
+        // keep ISO string
+      }
+      const notifyName = attendee.name || m('name') || attendee.email;
+      const notifyPhone = this.extractPhone(booking) ?? m('phone') ?? '';
+      const line = (l: string, v: string | null | undefined) =>
+        v ? `${l}: ${v}` : null;
+      const text = [
+        '📅 Call booked — Apptics',
+        '',
+        line('Name', notifyName),
+        line('Email', attendee.email),
+        line('Phone', notifyPhone),
+        line('When', when),
+        line('Volume', pq.companyRevenue),
+        line('Sells', pq.industry),
+        line(
+          'Based',
+          pq.based ? `${pq.based}${pq.country ? ` (${pq.country})` : ''}` : null,
+        ),
+        line('US LLC', pq.usLlc),
+        line('SSN/ITIN', pq.ssnItin),
+        line('Active', pq.activeFor),
+        line('Audience', pq.sellsTo),
+        line('Website', pq.website),
+        line('Preferred', pq.preferredContact),
+        line('Telegram', pq.telegram),
+        `CRM lead: ${leadId}`,
+      ]
+        .filter((x) => x !== null)
+        .join('\n');
+      await this.notifyAdminsTelegram(text);
+    } catch (e) {
+      this.logger.warn(
+        `Telegram booking notify failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
     return { leadId, isNew };
+  }
+
+  // Sends a plain-text message to every TELEGRAM_ADMIN_CHAT_ID via the bot.
+  private async notifyAdminsTelegram(text: string): Promise<void> {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const raw = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+    if (!token || !raw) return;
+
+    const chatIds = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    await Promise.all(
+      chatIds.map((chatId) =>
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text,
+            disable_web_page_preview: true,
+          }),
+        }).catch(() => undefined),
+      ),
+    );
   }
 
   // Extracts affiliateId and referralId from Cal.com booking data.
