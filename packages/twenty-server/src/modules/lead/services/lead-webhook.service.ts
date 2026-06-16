@@ -153,6 +153,14 @@ export class LeadWebhookService {
         website: this.extractString(data, ['website']) ?? null,
         preferredContact:
           this.extractString(data, ['preferred_contact', 'comm']) ?? null,
+        // Attribution — paid ads vs organic, platform, campaign, click ids.
+        leadSource: this.extractString(data, ['lead_source']) ?? null,
+        adPlatform: this.extractString(data, ['ad_platform']) ?? null,
+        utmSource: this.extractString(data, ['utm_source']) ?? null,
+        utmMedium: this.extractString(data, ['utm_medium']) ?? null,
+        utmCampaign: this.extractString(data, ['utm_campaign']) ?? null,
+        gclid: this.extractString(data, ['gclid']) ?? null,
+        fbclid: this.extractString(data, ['fbclid']) ?? null,
       },
     };
   }
@@ -181,6 +189,7 @@ export class LeadWebhookService {
         "stage", "priority", "enrichmentStatus",
         "telegram", "companyRevenue", "industry",
         "based", "country", "ssnItin", "usLlc", "activeFor", "sellsTo", "website", "preferredContact",
+        "leadSource", "adPlatform", "utmSource", "utmMedium", "utmCampaign", "gclid", "fbclid",
         "position", "createdAt", "updatedAt"
       ) VALUES (
         $1, $2,
@@ -190,6 +199,7 @@ export class LeadWebhookService {
         $10, $11, $12,
         $13, $14, $15,
         $16, $17, $18, $19, $20, $21, $22, $23,
+        $24, $25, $26, $27, $28, $29, $30,
         0, NOW(), NOW()
       )`,
       [
@@ -216,6 +226,13 @@ export class LeadWebhookService {
         x.sellsTo ?? null,
         x.website ?? null,
         x.preferredContact ?? null,
+        x.leadSource ?? null,
+        x.adPlatform ?? null,
+        x.utmSource ?? null,
+        x.utmMedium ?? null,
+        x.utmCampaign ?? null,
+        x.gclid ?? null,
+        x.fbclid ?? null,
       ],
     );
 

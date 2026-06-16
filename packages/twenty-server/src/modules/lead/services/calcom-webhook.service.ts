@@ -65,6 +65,18 @@ export class CalcomWebhookService {
       preferredContact: m('preferred_contact'),
     };
 
+    // Attribution — paid ads vs organic, platform, campaign, click ids. The
+    // funnel form passes these as metadata (first-touch values via its cookie).
+    const attr: Record<string, string | null> = {
+      leadSource: m('lead_source'),
+      adPlatform: m('ad_platform'),
+      utmSource: m('utm_source'),
+      utmMedium: m('utm_medium'),
+      utmCampaign: m('utm_campaign'),
+      gclid: m('gclid'),
+      fbclid: m('fbclid'),
+    };
+
     this.logger.log(
       `Cal.com booking "${booking.uid}" for ${attendee.email}, affiliateId=${affiliateId ?? 'none'}, referralId=${referralId ?? 'none'}`,
     );
@@ -188,6 +200,20 @@ export class CalcomWebhookService {
         leadId,
         { name, emailsPrimaryEmail: attendee.email, stage: 'MEETING_SCHEDULED' },
         workspaceId,
+      );
+    }
+
+    // Persist attribution onto the lead (covers both new + existing leads).
+    const attrCols = Object.entries(attr).filter(([, v]) => v);
+
+    if (attrCols.length > 0) {
+      const sets = attrCols.map(([col], i) => `"${col}" = $${i + 1}`);
+      const vals: unknown[] = attrCols.map(([, v]) => v);
+
+      vals.push(leadId);
+      await this.dataSource.query(
+        `UPDATE "${schema}"."lead" SET ${sets.join(', ')}, "updatedAt" = NOW() WHERE id = $${vals.length}`,
+        vals,
       );
     }
 
