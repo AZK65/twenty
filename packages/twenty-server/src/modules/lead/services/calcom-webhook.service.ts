@@ -239,9 +239,26 @@ export class CalcomWebhookService {
       const notifyPhone = this.extractPhone(booking) ?? m('phone') ?? '';
       const line = (l: string, v: string | null | undefined) =>
         v ? `${l}: ${v}` : null;
+
+      // Where the lead came from. The funnel form passes lead_source +
+      // lead_source_detail as metadata; direct-calendar bookings have neither,
+      // so they're treated as organic.
+      const leadSource =
+        m('lead_source') ?? (affiliateId ? 'Partner' : 'Organic');
+      const leadSourceDetail =
+        m('lead_source_detail') ??
+        this.buildSourceDetail(affiliateId, referralId) ??
+        null;
+      const srcEmoji =
+        leadSource === 'Paid ads' ? '🟣' : leadSource === 'Partner' ? '🤝' : '🟢';
+      const sourceLine = `${srcEmoji} Source: ${leadSource}${
+        leadSourceDetail ? ` (${leadSourceDetail})` : ''
+      }`;
+
       const text = [
         '📅 Call booked — Apptics',
         '',
+        sourceLine,
         line('Name', notifyName),
         line('Email', attendee.email),
         line('Phone', notifyPhone),
