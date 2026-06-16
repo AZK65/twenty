@@ -75,6 +75,9 @@ export class CalcomWebhookService {
       utmCampaign: m('utm_campaign'),
       gclid: m('gclid'),
       fbclid: m('fbclid'),
+      // Always-present channel signal: which Cal event was booked.
+      bookingEvent:
+        this.asString(booking.type) ?? this.asString(booking.title) ?? null,
     };
 
     this.logger.log(
